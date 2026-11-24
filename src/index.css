@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-brand-900: #1D1AC2;
+  --color-brand-700: #2925EB;
+  --color-brand-600: #3E35F2;
+  --color-brand-500: #6658F6;
+  --color-brand-400: #8D7EF9;
+  --color-brand-300: #B3A8FC;
+  --color-brand-100: #ECEAFF;
+  --color-brand-50: #F4F3FF;
+
+  --color-canvas: #F2F1FE;
+  --color-ink: #100F24;
+  --color-ink-muted: #6C698A;
+  --color-ink-soft: #9693B2;
+
+  --color-accent-gold: #F2B632;
+  --color-accent-rose: #E25D9A;
+  --color-accent-emerald: #10B981;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.hero-gradient {
+  background: linear-gradient(155deg, #2421E8 0%, #5243F4 48%, #8F7EF8 100%);
+}
+
+.hero-gradient-soft {
+  background: linear-gradient(135deg, #302AF0 0%, #6D5CF7 60%, #A394FA 100%);
+}
+
+.card-floating {
+  background: #ffffff;
+  border-radius: 26px;
+  box-shadow: 0 14px 36px -14px rgba(42, 36, 224, 0.16), 0 2px 8px -2px rgba(16, 15, 36, 0.04);
+  border: 1px solid rgba(111, 98, 246, 0.1);
+}
+
+.glass-icon-btn {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.glass-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Custom sleek scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #eceaff;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b7aefb;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7c6df6;
+}
