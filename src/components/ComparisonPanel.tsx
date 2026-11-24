@@ -1,18 +1,8 @@
 import { useMemo } from 'react';
 import { CheckCircle2, Sparkles } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { compareAllMethods } from '../engine/amortization';
 import type { AmortizationMethod, LoanInput } from '../types/finance';
-import { currencySymbol, formatMoney, formatPercent } from '../utils/formatters';
+import { formatMoney, formatPercent } from '../utils/formatters';
 
 interface ComparisonPanelProps {
   input: LoanInput;
@@ -22,37 +12,35 @@ interface ComparisonPanelProps {
 export function ComparisonPanel({ input, onSelectMethod }: ComparisonPanelProps) {
   const items = useMemo(() => compareAllMethods(input), [input]);
   const minInterest = Math.min(...items.map((i) => i.totalInterest));
-  const sym = currencySymbol(input.currency);
-
-  const chartData = items.map((item) => ({
-    name: item.label.replace('Método ', ''),
-    Intereses: item.totalInterest,
-    'Total a Pagar': item.totalPaid,
-  }));
+  const maxTotal = Math.max(1, ...items.map((i) => i.totalPaid));
 
   return (
-    <div className="space-y-4">
-      {/* 3 Method Comparison Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="space-y-3">
+      {/* 3 Compact Method Cards side-by-side */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {items.map((item) => {
           const isSelected = item.method === input.method;
           const isBestInterest = item.totalInterest === minInterest && item.totalInterest > 0;
+          const barWidth = Math.max(12, (item.totalPaid / maxTotal) * 100);
+          const interestRatio = item.totalPaid > 0 ? (item.totalInterest / item.totalPaid) * 100 : 0;
 
           return (
             <div
               key={item.method}
-              className={`card-floating flex flex-col justify-between p-5 transition ${
+              className={`card-floating flex flex-col justify-between p-4 transition ${
                 isSelected ? 'ring-2 ring-[#2925EB]' : ''
               }`}
             >
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="text-sm font-extrabold text-[#100F24]">{item.label}</h3>
-                    <p className="mt-0.5 text-[11px] text-[#6C698A]">{item.subtitle}</p>
+                    <h3 className="text-xs font-extrabold text-[#100F24] sm:text-sm">
+                      {item.label}
+                    </h3>
+                    <p className="text-[10.5px] text-[#6C698A]">{item.subtitle}</p>
                   </div>
                   {isSelected && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#ECEAFF] px-2.5 py-0.5 text-[10px] font-bold text-[#2925EB]">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#ECEAFF] px-2 py-0.5 text-[10px] font-bold text-[#2925EB]">
                       <CheckCircle2 className="h-3 w-3" />
                       Activo
                     </span>
@@ -60,38 +48,38 @@ export function ComparisonPanel({ input, onSelectMethod }: ComparisonPanelProps)
                 </div>
 
                 {isBestInterest && (
-                  <div className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2.5 py-1 text-[10px] font-bold text-[#059669]">
+                  <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[10px] font-bold text-[#059669]">
                     <Sparkles className="h-3 w-3" />
                     Menor interés total
                   </div>
                 )}
 
-                <div className="mt-4 space-y-2.5 border-t border-[#F0EEFF] pt-3.5 text-xs tabular-nums">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6C698A]">1ª cuota normal</span>
+                <div className="mt-3 space-y-1.5 border-t border-[#F0EEFF] pt-2.5 text-[11.5px] tabular-nums">
+                  <div className="flex justify-between">
+                    <span className="text-[#6C698A]">1ª cuota</span>
                     <strong className="font-bold text-[#100F24]">
                       {formatMoney(item.firstPayment, input.currency)}
                     </strong>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex justify-between">
                     <span className="text-[#6C698A]">Última cuota</span>
                     <strong className="font-bold text-[#100F24]">
                       {formatMoney(item.lastPayment, input.currency)}
                     </strong>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#6C698A]">Total intereses</span>
+                  <div className="flex justify-between">
+                    <span className="text-[#6C698A]">Intereses</span>
                     <strong className="font-extrabold text-[#C28608]">
                       {formatMoney(item.totalInterest, input.currency)}
                     </strong>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex justify-between">
                     <span className="text-[#6C698A]">Total a pagar</span>
                     <strong className="font-extrabold text-[#2925EB]">
                       {formatMoney(item.totalPaid, input.currency)}
                     </strong>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex justify-between">
                     <span className="text-[#6C698A]">TCEA</span>
                     <strong className="font-bold text-[#100F24]">
                       {formatPercent(item.tcea, 2)}
@@ -99,25 +87,37 @@ export function ComparisonPanel({ input, onSelectMethod }: ComparisonPanelProps)
                   </div>
                 </div>
 
-                {/* Difference vs French */}
-                <div className="mt-3 rounded-xl bg-[#F6F5FF] px-3 py-2 text-[11px]">
-                  {item.method === 'french' ? (
-                    <span className="font-semibold text-[#6C698A]">
-                      Referencia estándar bancaria en Perú
-                    </span>
-                  ) : item.interestDeltaVsFrench < 0 ? (
-                    <span className="font-bold text-[#059669]">
-                      Ahorra {formatMoney(Math.abs(item.interestDeltaVsFrench), input.currency)} en
-                      intereses vs. Francés
-                    </span>
-                  ) : item.interestDeltaVsFrench > 0 ? (
-                    <span className="font-bold text-[#BE185D]">
-                      +{formatMoney(item.interestDeltaVsFrench, input.currency)} más en intereses
-                      vs. Francés
-                    </span>
-                  ) : (
-                    <span className="font-semibold text-[#6C698A]">Sin diferencia (i = 0%)</span>
-                  )}
+                {/* Inline Mini Visual Bar */}
+                <div className="mt-3">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[#F3F2FF]">
+                    <div
+                      className="flex h-full overflow-hidden rounded-full transition-all duration-300"
+                      style={{ width: `${barWidth}%` }}
+                    >
+                      <div
+                        className="h-full bg-[#4C3FF0]"
+                        style={{ width: `${Math.max(0, 100 - interestRatio)}%` }}
+                      />
+                      <div className="h-full bg-[#F2B632]" style={{ width: `${interestRatio}%` }} />
+                    </div>
+                  </div>
+                  <div className="mt-1.5 text-[10.5px] font-semibold">
+                    {item.method === 'french' ? (
+                      <span className="text-[#6C698A]">Referencia estándar Perú</span>
+                    ) : item.interestDeltaVsFrench < 0 ? (
+                      <span className="text-[#059669]">
+                        Ahorra {formatMoney(Math.abs(item.interestDeltaVsFrench), input.currency)} vs.
+                        Francés
+                      </span>
+                    ) : item.interestDeltaVsFrench > 0 ? (
+                      <span className="text-[#BE185D]">
+                        +{formatMoney(item.interestDeltaVsFrench, input.currency)} interés vs.
+                        Francés
+                      </span>
+                    ) : (
+                      <span className="text-[#6C698A]">Sin diferencia (i = 0%)</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -125,63 +125,17 @@ export function ComparisonPanel({ input, onSelectMethod }: ComparisonPanelProps)
                 type="button"
                 disabled={isSelected}
                 onClick={() => onSelectMethod(item.method)}
-                className={`mt-4 w-full rounded-2xl py-2.5 text-xs font-bold transition ${
+                className={`mt-3 w-full rounded-xl py-2 text-[11px] font-bold transition ${
                   isSelected
                     ? 'cursor-default bg-[#ECEAFF] text-[#2925EB]'
                     : 'bg-[#0C0C14] text-white hover:bg-[#2925EB]'
                 }`}
               >
-                {isSelected ? 'Sistema Seleccionado' : `Aplicar ${item.label}`}
+                {isSelected ? 'Seleccionado' : `Usar ${item.label.replace('Método ', '')}`}
               </button>
             </div>
           );
         })}
-      </div>
-
-      {/* Bar Comparison Visual */}
-      <div className="card-floating p-5 sm:p-6">
-        <div className="mb-4">
-          <h3 className="text-sm font-extrabold text-[#100F24] sm:text-base">
-            Comparativa Visual: Intereses y Costo Total por Sistema
-          </h3>
-          <p className="text-xs text-[#6C698A]">
-            Mismo capital P, plazo n y tasa i aplicados a los 3 sistemas de Ingeniería Económica
-          </p>
-        </div>
-
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ECEAFF" vertical={false} />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 12, fill: '#100F24', fontWeight: 700 }}
-                axisLine={{ stroke: '#DFDCFC' }}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={(v: number) =>
-                  v >= 1000 ? `${sym}${(v / 1000).toFixed(0)}k` : `${sym}${v}`
-                }
-                tick={{ fontSize: 11, fill: '#6C698A' }}
-                axisLine={false}
-                tickLine={false}
-                width={62}
-              />
-              <Tooltip
-                formatter={(value: number) => formatMoney(value, input.currency)}
-                contentStyle={{
-                  borderRadius: '16px',
-                  border: '1px solid #DFDCFC',
-                  fontSize: '12px',
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: '12px' }} />
-              <Bar dataKey="Intereses" fill="#F2B632" radius={[8, 8, 0, 0]} maxBarSize={56} />
-              <Bar dataKey="Total a Pagar" fill="#4C3FF0" radius={[8, 8, 0, 0]} maxBarSize={56} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
       </div>
     </div>
   );

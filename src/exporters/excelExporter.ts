@@ -16,6 +16,7 @@ const COLORS = {
   brandLighter: 'FFF5F4FF',
   graceTotalBg: 'FFFDF2F8',
   gracePartialBg: 'FFFFFBEB',
+  period0Bg: 'FFEEF2FF',
   ink: 'FF100F24',
   muted: 'FF646182',
   border: 'FFD9D6FA',
@@ -23,14 +24,18 @@ const COLORS = {
 };
 
 /**
- * Builds an ExcelJS Workbook with live native formulas (without leading `=`),
- * adapting formulas to the selected amortization method, handling i = 0% with IF,
- * and handling grace periods g over remaining (n - g) periods.
+ * Builds an ExcelJS Workbook with 100% live native Excel formulas (zero leading `=`),
+ * including:
+ * - Live base-360 rate conversions (TEA -> i_p, TNA -> TEA -> i_p, or i_p -> TEA)
+ * - Method-specific amortization formulas (PMT only for French with IF guard for i = 0%;
+ *   constant P_eff/(n-g) for German; 0 amortization & balloon P_eff at n for American)
+ * - Period 0 disbursement row + Cash Flow column with live IRR & TCEA formulas
+ * - Exact Total-Grace capitalization & closing balance 0.00 at period n
  */
 export async function buildExcelWorkbook(result: SimulationResult): Promise<ExcelJS.Workbook> {
   const { input, rates, rows, summary } = result;
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'CronoPE - Ingeniería Económica Perú';
+  workbook.creator = 'CronoPE - Lindbergh Paredes y Jesus Garcia';
   workbook.created = new Date();
 
   const moneyFmt = CURRENCY_NUM_FMT[input.currency];
@@ -44,24 +49,26 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     views: [{ state: 'frozen', ySplit: 14 }],
   });
 
-  const lastColIndex = sbs ? 11 : 7;
-  const lastColLetter = sbs ? 'K' : 'G';
+  const lastColIndex = sbs ? 12 : 8;
+  const lastColLetter = sbs ? 'L' : 'H';
 
   // Row 1: Main Title Banner
   sheet.mergeCells(`A1:${lastColLetter}1`);
   const titleCell = sheet.getCell('A1');
   titleCell.value = 'CRONOGRAMA DE PAGOS — SIMULADOR DE INGENIERÍA ECONÓMICA (PERÚ · SBS 360)';
-  titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: COLORS.white } };
+  titleCell.font = { name: 'Calibri', size: 13.5, bold: true, color: { argb: COLORS.white } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.brandDark } };
   titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-  sheet.getRow(1).height = 30;
+  sheet.getRow(1).height = 29;
 
-  // Rows 2-3: Academic Metadata Subtitle
+  // Row 2: Academic Metadata Subtitle
   const acadParts: string[] = [];
   if (input.academic.university.trim()) acadParts.push(`Universidad: ${input.academic.university.trim()}`);
   if (input.academic.course.trim()) acadParts.push(`Curso: ${input.academic.course.trim()}`);
   if (input.academic.professor.trim()) acadParts.push(`Docente: ${input.academic.professor.trim()}`);
-  if (input.academic.studentOrGroup.trim()) acadParts.push(`Alumno / Grupo: ${input.academic.studentOrGroup.trim()}`);
+  if (input.academic.studentOrGroup.trim()) {
+    acadParts.push(`Integrantes: ${input.academic.studentOrGroup.trim()}`);
+  }
 
   sheet.mergeCells(`A2:${lastColLetter}2`);
   const acadCell = sheet.getCell('A2');
@@ -74,6 +81,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
   acadCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
   sheet.getRow(2).height = 22;
 
+  // Row 3: System summary bar
   sheet.mergeCells(`A3:${lastColLetter}3`);
   const modeInfoCell = sheet.getCell('A3');
   modeInfoCell.value = `Sistema: ${methodLabel(input.method)}   •   Frecuencia: ${freqMeta.label} (${rates.daysPerPeriod} días / base 360)   •   ${graceLabel(input.graceType, summary.gracePeriods)}   •   Modo: ${sbs ? 'Banca Perú (SBS)' : 'Académico Puro'}`;
@@ -82,24 +90,24 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
   modeInfoCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
   sheet.getRow(3).height = 20;
 
-  // Row 4: Spacer
-  sheet.getRow(4).height = 8;
+  sheet.getRow(4).height = 7;
 
-  // Section Header Row 5
+  // Row 5: Parameter Section Headers
   sheet.mergeCells('A5:C5');
   sheet.getCell('A5').value = 'PARÁMETROS DE ENTRADA (P, n, i)';
   sheet.getCell('A5').font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.brandDark } };
   sheet.getCell('A5').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.brandSoft } };
 
   sheet.mergeCells(`E5:${lastColLetter}5`);
-  sheet.getCell('E5').value = 'RESUMEN FINANCIERO Y CARGOS (BASE 360 DÍAS)';
+  sheet.getCell('E5').value = 'RESUMEN FINANCIERO, TASAS Y TIR / TCEA (BASE 360)';
   sheet.getCell('E5').font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.brandDark } };
   sheet.getCell('E5').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.brandSoft } };
   sheet.getRow(5).height = 20;
 
-  // Table geometry
+  // Table geometry (Row 14 = headers, Row 15 = Period 0 Disbursement, Rows 16..15+n = Periods 1..n)
   const headerRowNum = 14;
-  const tableStartRow = 15;
+  const period0Row = 15;
+  const tableStartRow = 16;
   const tableEndRow = tableStartRow + rows.length - 1;
   const totalRowNum = tableEndRow + 1;
 
@@ -112,8 +120,22 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
   const feeCol = 'I';
   const totalPayCol = sbs ? 'J' : 'F';
   const balEndCol = sbs ? 'K' : 'G';
+  const cfCol = sbs ? 'L' : 'H';
 
-  // Left Parameter Block (Rows 6..11, Labels in A:B merged, Values in C)
+  const rightLabelStart = 'E';
+  const rightLabelEnd = sbs ? 'K' : 'G';
+  const rightValCol = sbs ? 'L' : 'H';
+  const teaRef = `${rightValCol}6`;
+
+  // Left Parameter Block (Rows 6..12)
+  const periodRateValue: ExcelJS.CellValue =
+    input.rateType === 'PERIOD_EFFECTIVE'
+      ? rates.periodRate
+      : {
+          formula: `IF(${teaRef}=0,0,(1+${teaRef})^(${rates.daysPerPeriod}/360)-1)`,
+          result: rates.periodRate,
+        };
+
   const leftParams: Array<{
     row: number;
     label: string;
@@ -135,7 +157,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     {
       row: 8,
       label: `Tasa Efectiva Periodo (${rates.periodRateLabel})`,
-      value: rates.periodRate,
+      value: periodRateValue,
       numFmt: '0.0000%',
     },
     {
@@ -162,6 +184,15 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
           : { formula: 'C6', result: summary.effectivePrincipal },
       numFmt: moneyFmt,
     },
+    {
+      row: 12,
+      label:
+        input.rateType === 'TNA'
+          ? `TNA Ingresada (Cap. m = ${rates.compoundingPerYear})`
+          : 'Días por Periodo (Base 360 SBS)',
+      value: input.rateType === 'TNA' ? rates.inputRateDecimal : rates.daysPerPeriod,
+      numFmt: input.rateType === 'TNA' ? '0.00%' : '#,##0',
+    },
   ];
 
   for (const item of leftParams) {
@@ -181,10 +212,19 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     sheet.getRow(item.row).height = 19;
   }
 
-  // Right Summary Block (Rows 6..11, Labels in E:F or E, Values in G or F)
-  const rightLabelStart = 'E';
-  const rightLabelEnd = sbs ? 'I' : 'F';
-  const rightValCol = sbs ? 'J' : 'G';
+  // Right Summary Block (Rows 6..12)
+  const teaCellValue: ExcelJS.CellValue =
+    input.rateType === 'TEA'
+      ? rates.tea
+      : input.rateType === 'TNA'
+        ? {
+            formula: `IF(C12=0,0,(1+C12/${rates.compoundingPerYear})^${rates.compoundingPerYear}-1)`,
+            result: rates.tea,
+          }
+        : {
+            formula: `IF(C8=0,0,(1+C8)^${rates.periodsPerYear}-1)`,
+            result: rates.tea,
+          };
 
   const rightParams: Array<{
     row: number;
@@ -194,29 +234,26 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
   }> = [
     {
       row: 6,
-      label: 'TEA Equivalente (Base 360 días)',
-      value: {
-        formula: `IF(C8=0,0,(1+C8)^(${rates.periodsPerYear})-1)`,
-        result: rates.tea,
-      },
+      label: input.rateType === 'TEA' ? 'TEA Ingresada (Base 360 días)' : 'TEA Equivalente (Base 360)',
+      value: teaCellValue,
       numFmt: '0.00%',
     },
     {
       row: 7,
-      label: sbs ? `Desgravamen Periodo (${freqMeta.shortLabel})` : 'Modo de Cálculo',
-      value: sbs ? rates.periodDesgravamenRate : 'Académico Puro (P, n, i)',
-      numFmt: sbs ? '0.0000%' : '@',
-    },
-    {
-      row: 8,
-      label: sbs ? 'Comisión / Portes por Periodo' : 'Factor FRC (A/P, i, m)',
+      label: sbs ? `Desgravamen Periodo (${freqMeta.shortLabel})` : 'Factor FRC (A/P, i, m)',
       value: sbs
-        ? input.fixedFeePerPeriod
+        ? rates.periodDesgravamenRate
         : {
             formula: 'IF(C8=0,1/C10,(C8*(1+C8)^C10)/((1+C8)^C10-1))',
             result: summary.frcFactor,
           },
-      numFmt: sbs ? moneyFmt : '0.000000',
+      numFmt: sbs ? '0.0000%' : '0.000000',
+    },
+    {
+      row: 8,
+      label: sbs ? 'Comisión / Portes por Periodo' : 'Modalidad de Cálculo',
+      value: sbs ? input.fixedFeePerPeriod : 'Académico Puro (P, n, i)',
+      numFmt: sbs ? moneyFmt : '@',
     },
     {
       row: 9,
@@ -238,8 +275,20 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     },
     {
       row: 11,
-      label: 'TCEA Estimada (TIR Anualizada)',
-      value: summary.tcea,
+      label: `TIR del Periodo (${freqMeta.shortLabel})`,
+      value: {
+        formula: `IFERROR(IRR(${cfCol}${period0Row}:${cfCol}${tableEndRow},C8),0)`,
+        result: summary.periodicIrr,
+      },
+      numFmt: '0.0000%',
+    },
+    {
+      row: 12,
+      label: 'TCEA Anualizada (Base 360)',
+      value: {
+        formula: `IF(${rightValCol}11<=0,0,(1+${rightValCol}11)^${rates.periodsPerYear}-1)`,
+        result: summary.tcea,
+      },
       numFmt: '0.00%',
     },
   ];
@@ -260,8 +309,6 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     val.border = { bottom: { style: 'thin', color: { argb: COLORS.border } } };
   }
 
-  // Row 12-13: Spacer
-  sheet.getRow(12).height = 8;
   sheet.getRow(13).height = 8;
 
   // Row 14: Schedule Table Header
@@ -278,11 +325,21 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
         'Comis./Portes',
         'Cuota Total',
         'Saldo Final',
+        'Flujo (TIR)',
       ]
-    : ['N°', 'Fecha Venc.', 'Saldo Inicial', 'Amortización', 'Interés', 'Cuota', 'Saldo Final'];
+    : [
+        'N°',
+        'Fecha Venc.',
+        'Saldo Inicial',
+        'Amortización',
+        'Interés',
+        'Cuota',
+        'Saldo Final',
+        'Flujo (TIR)',
+      ];
 
   const headerRow = sheet.getRow(headerRowNum);
-  headerRow.height = 26;
+  headerRow.height = 25;
   headers.forEach((h, idx) => {
     const cell = headerRow.getCell(idx + 1);
     cell.value = h;
@@ -294,43 +351,61 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     };
   });
 
-  // Schedule Rows (15 .. 15 + n - 1)
+  // Row 15: Period 0 (Disbursement row enabling live Excel IRR / TCEA calculation)
+  const p0 = sheet.getRow(period0Row);
+  p0.height = 19;
+  p0.getCell(1).value = 0;
+  p0.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+  p0.getCell(2).value = formatIsoDateEsPe(input.startDate);
+  p0.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
+  if (sbs) {
+    p0.getCell(3).value = 'Desembolso';
+    p0.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
+  }
+  const p0Bal = sheet.getCell(`${balEndCol}${period0Row}`);
+  p0Bal.value = { formula: 'C6', result: summary.principal };
+  p0Bal.numFmt = moneyFmt;
+
+  const p0Cf = sheet.getCell(`${cfCol}${period0Row}`);
+  p0Cf.value = { formula: 'C6', result: summary.principal };
+  p0Cf.numFmt = moneyFmt;
+
+  for (let c = 1; c <= lastColIndex; c++) {
+    const cell = p0.getCell(c);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.period0Bg } };
+    cell.font = { name: 'Calibri', size: 10, bold: c === 1 || c >= lastColIndex - 1, color: { argb: COLORS.brandDark } };
+    cell.border = { bottom: { style: 'thin', color: { argb: COLORS.border } } };
+  }
+
+  // Rows 16 .. 15 + n: Payment Schedule Rows
   const desgRateRef = `$${rightValCol}$7`;
   const feeRef = `$${rightValCol}$8`;
 
   rows.forEach((row, idx) => {
     const r = tableStartRow + idx;
-    const isFirst = idx === 0;
     const isLast = idx === rows.length - 1;
     const xlRow = sheet.getRow(r);
     xlRow.height = 19;
 
-    // Col A: Period number
-    const cPeriod = xlRow.getCell(1);
-    cPeriod.value = row.period;
-    cPeriod.alignment = { horizontal: 'center', vertical: 'middle' };
+    xlRow.getCell(1).value = row.period;
+    xlRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // Col B: Due date
-    const cDate = xlRow.getCell(2);
-    cDate.value = formatIsoDateEsPe(row.dueDate);
-    cDate.alignment = { horizontal: 'center', vertical: 'middle' };
+    xlRow.getCell(2).value = formatIsoDateEsPe(row.dueDate);
+    xlRow.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
 
     if (sbs) {
-      const cPhase = xlRow.getCell(3);
-      cPhase.value =
+      xlRow.getCell(3).value =
         row.phase === 'grace_total'
           ? 'Gracia Total'
           : row.phase === 'grace_partial'
             ? 'Gracia Parcial'
             : 'Normal';
-      cPhase.alignment = { horizontal: 'center', vertical: 'middle' };
+      xlRow.getCell(3).alignment = { horizontal: 'center', vertical: 'middle' };
     }
 
-    // Opening Balance
+    // Opening Balance uniformly references previous row's Closing Balance (Period 0 -> Period 1 -> ... -> n)
     const openCell = sheet.getCell(`${balInitCol}${r}`);
-    openCell.value = isFirst
-      ? { formula: 'C6', result: row.openingBalance }
-      : { formula: `${balEndCol}${r - 1}`, result: row.openingBalance };
+    openCell.value = { formula: `${balEndCol}${r - 1}`, result: row.openingBalance };
     openCell.numFmt = moneyFmt;
 
     // Interest = ROUND(OpeningBalance * i_p, 2)
@@ -341,7 +416,6 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     };
     intCell.numFmt = moneyFmt;
 
-    // SBS Desgravamen & Fees
     if (sbs) {
       const desgCell = sheet.getCell(`${desgCol}${r}`);
       desgCell.value = {
@@ -352,7 +426,9 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
 
       const feeCell = sheet.getCell(`${feeCol}${r}`);
       feeCell.value =
-        row.phase === 'grace_total' ? 0 : { formula: feeRef, result: row.fees };
+        row.phase === 'grace_total'
+          ? 0
+          : { formula: `IF(${balInitCol}${r}<=0,0,${feeRef})`, result: row.fees };
       feeCell.numFmt = moneyFmt;
     }
 
@@ -374,7 +450,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
       baseCell.value = { formula: `${intCol}${r}`, result: row.basePayment };
       endCell.value = { formula: `${balInitCol}${r}`, result: row.closingBalance };
     } else if (isLast) {
-      // Final period n guarantees exact 0.00 closing balance across all methods
+      // Final period n closes balance at exact 0.00 across all 3 methods
       amortCell.value = { formula: `${balInitCol}${r}`, result: row.amortization };
       baseCell.value = {
         formula: `ROUND(${amortCol}${r}+${intCol}${r},2)`,
@@ -387,7 +463,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     } else if (input.method === 'french') {
       // French method: uses PMT with IF guard for i = 0% (no leading "=")
       baseCell.value = {
-        formula: `IF($C$8=0,ROUND($C$11/$C$10,2),ROUND(PMT($C$8,$C$10,-$C$11),2))`,
+        formula: `IF(${balInitCol}${r}<=0,0,IF($C$8=0,ROUND($C$11/$C$10,2),ROUND(PMT($C$8,$C$10,-$C$11),2)))`,
         result: row.basePayment,
       };
       amortCell.value = {
@@ -413,7 +489,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
         result: row.closingBalance,
       };
     } else {
-      // American method: 0 amortization until period n, pays interest only
+      // American method: 0 amortization until period n, interest only
       amortCell.value = 0;
       baseCell.value = {
         formula: `${intCol}${r}`,
@@ -444,7 +520,14 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
       baseCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.ink } };
     }
 
-    // Zebra striping & Grace highlight
+    // Cash flow column for live Excel IRR / TCEA
+    const cfCell = sheet.getCell(`${cfCol}${r}`);
+    cfCell.value = {
+      formula: `-${totalPayCol}${r}`,
+      result: row.totalPayment === 0 ? 0 : -row.totalPayment,
+    };
+    cfCell.numFmt = moneyFmt;
+
     const bgArgb =
       row.phase === 'grace_total'
         ? COLORS.graceTotalBg
@@ -460,9 +543,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
       if (!cell.font) {
         cell.font = { name: 'Calibri', size: 10, color: { argb: COLORS.ink } };
       }
-      cell.border = {
-        bottom: { style: 'hair', color: { argb: COLORS.border } },
-      };
+      cell.border = { bottom: { style: 'hair', color: { argb: COLORS.border } } };
     }
   });
 
@@ -476,7 +557,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     ? [
         { col: amortCol, result: summary.totalAmortization },
         { col: intCol, result: summary.totalInterest },
-        { col: basePayCol, result: summary.totalAmortization + summary.totalInterest },
+        { col: basePayCol, result: summary.totalBasePayment },
         { col: desgCol, result: summary.totalDesgravamen },
         { col: feeCol, result: summary.totalFees },
         { col: totalPayCol, result: summary.totalPaid },
@@ -508,10 +589,9 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     };
   }
 
-  // Column widths
   const colWidths = sbs
-    ? [7, 13, 15, 16, 15, 14, 15, 14, 14, 16, 16]
-    : [8, 14, 18, 17, 16, 18, 18];
+    ? [7, 13, 15, 16, 15, 14, 15, 14, 14, 16, 16, 15]
+    : [8, 14, 17, 16, 15, 17, 17, 16];
   colWidths.forEach((w, idx) => {
     sheet.getColumn(idx + 1).width = w;
   });
@@ -594,7 +674,6 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
     }
   });
 
-  // Formulas reference block
   compSheet.mergeCells('A10:G10');
   compSheet.getCell('A10').value = 'FÓRMULAS CLAVE DE INGENIERÍA ECONÓMICA APLICADAS (SBS PERÚ · 360 DÍAS)';
   compSheet.getCell('A10').font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLORS.brandDark } };
@@ -604,9 +683,9 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
   const formulasRef: Array<[string, string]> = [
     ['Conversión TEA a Tasa del Periodo', 'i_p = (1 + TEA)^(días / 360) - 1'],
     ['Conversión TNA a TEA', 'TEA = (1 + TNA / m)^m - 1'],
-    ['Método Francés (Cuota Fija)', 'R = P * [ i(1+i)^m / ((1+i)^m - 1) ]  (si i = 0% => R = P / m)'],
-    ['Método Alemán (Amort. Constante)', 'A_k = P / m ;  I_k = S_(k-1) * i ;  R_k = A_k + I_k'],
-    ['Método Americano', 'I_k = P * i  (k < n) ;  R_n = P + P * i'],
+    ['Método Francés (Cuota Fija)', 'R = P_ef * [ i(1+i)^m / ((1+i)^m - 1) ]  (si i = 0% => R = P_ef / m)'],
+    ['Método Alemán (Amort. Constante)', 'A_k = P_ef / m ;  I_k = S_(k-1) * i ;  R_k = A_k + I_k'],
+    ['Método Americano', 'I_k = P_ef * i  (k < n) ;  R_n = P_ef + I_n'],
     ['TCEA (Costo Efectivo Anual)', 'TCEA = (1 + TIR_periodo)^(periodos/año) - 1   donde VAN(TIR) = 0'],
   ];
 

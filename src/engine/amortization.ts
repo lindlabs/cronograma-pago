@@ -53,7 +53,10 @@ export function capitalRecoveryFactor(periodRate: number, periods: number): numb
 export function resolvePrincipal(input: LoanInput): number {
   if (input.useDownPayment) {
     const price = Number.isFinite(input.assetPrice) && input.assetPrice > 0 ? input.assetPrice : 0;
-    const pct = Math.max(0, Math.min(99, Number.isFinite(input.downPaymentPercent) ? input.downPaymentPercent : 0));
+    const pct = Math.max(
+      0,
+      Math.min(99, Number.isFinite(input.downPaymentPercent) ? input.downPaymentPercent : 0),
+    );
     return round2(Math.max(1, price * (1 - pct / 100)));
   }
   return round2(Number.isFinite(input.principal) && input.principal > 0 ? input.principal : 1);
@@ -66,6 +69,9 @@ export function resolvePrincipal(input: LoanInput): number {
  * 1. i = 0% edge case handled without NaN or division by zero (Cuota = P / m).
  * 2. g grace periods inside n total periods amortize over remaining m = n - g periods.
  * 3. Final period n closes balance at exact 0.00.
+ * 4. Exact accounting conservation:
+ *      principal + totalInterest + totalDesgravamen + totalFees === totalPaid
+ *      totalAmortization === effectivePrincipal === principal + capitalizedInterest + capitalizedDesgravamen
  */
 export function simulateLoan(input: LoanInput): SimulationResult {
   const principal = resolvePrincipal(input);
@@ -97,6 +103,8 @@ export function simulateLoan(input: LoanInput): SimulationResult {
 
   const rows: ScheduleRow[] = [];
   let openingBalance = principal;
+  let capitalizedInterest = 0;
+  let capitalizedDesgravamen = 0;
 
   // Phase 1: Grace periods (k = 1 .. g)
   for (let k = 1; k <= gracePeriods; k++) {
@@ -107,6 +115,8 @@ export function simulateLoan(input: LoanInput): SimulationResult {
 
     if (input.graceType === 'total') {
       // Total Grace: zero cash payment, interest (+ desgravamen if SBS) capitalizes into balance
+      capitalizedInterest = round2(capitalizedInterest + interest);
+      capitalizedDesgravamen = round2(capitalizedDesgravamen + desgravamen);
       const closingBalance = round2(openingBalance + interest + desgravamen);
       rows.push({
         period: k,
@@ -156,6 +166,25 @@ export function simulateLoan(input: LoanInput): SimulationResult {
     const isLast = k === totalPeriods;
     const yearIndex = Math.ceil(k / freqMeta.periodsPerYear);
     const dueDate = addMonthsToIso(input.startDate, k * freqMeta.monthsPerPeriod);
+
+    // Guard for extreme edge cases where balance already settled early due to 2-decimal rounding
+    if (openingBalance <= 0) {
+      rows.push({
+        period: k,
+        yearIndex,
+        dueDate,
+        phase: 'normal',
+        openingBalance: 0,
+        amortization: 0,
+        interest: 0,
+        basePayment: 0,
+        desgravamen: 0,
+        fees: 0,
+        totalPayment: 0,
+        closingBalance: 0,
+      });
+      continue;
+    }
 
     const interest = round2(openingBalance * rates.periodRate);
     const desgravamen = input.sbsMode ? round2(openingBalance * rates.periodDesgravamenRate) : 0;
@@ -247,9 +276,10 @@ export function simulateLoan(input: LoanInput): SimulationResult {
   }
   const annualSummary = Array.from(annualMap.values());
 
-  // Totals
+  // Exact Column Totals
   const totalAmortization = round2(rows.reduce((acc, r) => acc + r.amortization, 0));
   const totalInterest = round2(rows.reduce((acc, r) => acc + r.interest, 0));
+  const totalBasePayment = round2(rows.reduce((acc, r) => acc + r.basePayment, 0));
   const totalDesgravamen = round2(rows.reduce((acc, r) => acc + r.desgravamen, 0));
   const totalFees = round2(rows.reduce((acc, r) => acc + r.fees, 0));
   const totalPaid = round2(rows.reduce((acc, r) => acc + r.totalPayment, 0));
@@ -262,7 +292,7 @@ export function simulateLoan(input: LoanInput): SimulationResult {
     firstNormalRow ? firstNormalRow.totalPayment : 0,
   );
 
-  // TIR & TCEA from actual client cash flows
+  // TIR & TCEA from actual client cash flows: CF_0 = +principal, CF_k = -totalPayment_k
   const periodicIrr = calculatePeriodicIrr(
     principal,
     rows.map((r) => r.totalPayment),
@@ -283,6 +313,8 @@ export function simulateLoan(input: LoanInput): SimulationResult {
     annualSummary,
     summary: {
       principal,
+      capitalizedInterest,
+      capitalizedDesgravamen,
       effectivePrincipal,
       totalPeriods,
       gracePeriods,
@@ -294,6 +326,7 @@ export function simulateLoan(input: LoanInput): SimulationResult {
       frcFactor,
       totalAmortization,
       totalInterest,
+      totalBasePayment,
       totalDesgravamen,
       totalFees,
       totalPaid,

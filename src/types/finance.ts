@@ -21,7 +21,7 @@ export type AmortizationMethod = 'french' | 'german' | 'american';
 
 export type GraceType = 'none' | 'partial' | 'total';
 
-export type TermUnit = 'years' | 'months';
+export type TermUnit = 'years' | 'months' | 'periods';
 
 export type RowPhase = 'grace_total' | 'grace_partial' | 'normal';
 
@@ -41,7 +41,7 @@ export interface LoanInput {
   downPaymentPercent: number;
   /** Currency: Soles (PEN) or Dollars (USD) */
   currency: CurrencyCode;
-  /** Term value in years or months */
+  /** Term value in years, months, or direct payment periods */
   termValue: number;
   termUnit: TermUnit;
   /** Payment frequency */
@@ -120,6 +120,8 @@ export interface AnnualSummaryRow {
 
 export interface SimulationSummary {
   principal: number;
+  capitalizedInterest: number;
+  capitalizedDesgravamen: number;
   effectivePrincipal: number;
   totalPeriods: number;
   gracePeriods: number;
@@ -131,16 +133,23 @@ export interface SimulationSummary {
   minNormalTotalPayment: number;
   /** Capital Recovery Factor (A/P, i, m) */
   frcFactor: number;
+  /** Exact sum of row.amortization (= effectivePrincipal) */
   totalAmortization: number;
+  /** Exact sum of row.interest (includes capitalized interest during total grace) */
   totalInterest: number;
+  /** Exact sum of row.basePayment */
+  totalBasePayment: number;
+  /** Exact sum of row.desgravamen (includes capitalized desgravamen during total grace) */
   totalDesgravamen: number;
+  /** Exact sum of row.fees */
   totalFees: number;
+  /** Exact sum of row.totalPayment (= principal + totalInterest + totalDesgravamen + totalFees) */
   totalPaid: number;
   /** Periodic IRR from borrower's perspective */
   periodicIrr: number;
   /** Annualized TCEA based on periodic IRR */
   tcea: number;
-  /** Interest as % of principal */
+  /** Total interest as % of original principal P */
   interestToPrincipalRatio: number;
 }
 

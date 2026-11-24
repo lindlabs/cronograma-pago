@@ -39,7 +39,7 @@ export const DEFAULT_LOAN_INPUT: LoanInput = {
     university: 'Universidad Tecnológica del Perú (UTP)',
     course: 'Ingeniería Económica',
     professor: '',
-    studentOrGroup: '',
+    studentOrGroup: 'Lindbergh Paredes y Jesus Garcia',
   },
 };
 

@@ -90,6 +90,9 @@ export function computeTotalPeriods(
 ): number {
   const safeTerm = Number.isFinite(termValue) && termValue > 0 ? termValue : 1;
   const meta = FREQUENCY_META[frequency];
+  if (termUnit === 'periods') {
+    return Math.max(1, Math.min(600, Math.round(safeTerm)));
+  }
   const totalMonths = termUnit === 'years' ? safeTerm * 12 : safeTerm;
   const rawPeriods = Math.round(totalMonths / meta.monthsPerPeriod);
   return Math.max(1, Math.min(600, rawPeriods));

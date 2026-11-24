@@ -26,13 +26,14 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
   const sym = currencySymbol(input.currency);
   const canShowPerPeriod = rows.length <= 60;
   const [groupByYear, setGroupByYear] = useState(rows.length > 24);
+  const [mainChart, setMainChart] = useState<'bars' | 'balance'>('bars');
 
   const useAnnualData = annualSummary.length > 1 && (!canShowPerPeriod || groupByYear);
 
   const seriesData = useMemo(() => {
     if (useAnnualData) {
       return annualSummary.map((yr) => ({
-        name: `Año ${yr.yearIndex}`,
+        name: `A${yr.yearIndex}`,
         Amortización: yr.amortization,
         Interés: yr.interest,
         Cargos: Number((yr.desgravamen + yr.fees).toFixed(2)),
@@ -50,12 +51,12 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
 
   const donutData = useMemo(() => {
     const items = [
-      { name: 'Capital (Amortización)', value: summary.totalAmortization, color: '#4C3FF0' },
+      { name: 'Capital (P)', value: summary.principal, color: '#4C3FF0' },
       { name: 'Intereses', value: summary.totalInterest, color: '#F2B632' },
     ];
     const extra = Number((summary.totalDesgravamen + summary.totalFees).toFixed(2));
     if (extra > 0) {
-      items.push({ name: 'Desgravamen y Portes', value: extra, color: '#E25D9A' });
+      items.push({ name: 'Seg./Portes', value: extra, color: '#E25D9A' });
     }
     return items.filter((d) => d.value > 0);
   }, [summary]);
@@ -67,27 +68,37 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Chart 1: Amortización vs Interés */}
-      <div className="card-floating p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-extrabold text-[#100F24] sm:text-base">
-              Evolución de Amortización vs. Interés
-            </h3>
-            <p className="text-xs text-[#6C698A]">
-              {useAnnualData
-                ? `Agrupado por año (${annualSummary.length} años) para lectura óptima de largo plazo`
-                : `Detalle por cuota (${rows.length} periodos)`}
-            </p>
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
+      {/* Main Interactive Chart with Switcher (Amortización vs Interés / Saldo Deudor) */}
+      <div className="card-floating p-4 sm:p-5 xl:col-span-8">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex rounded-xl bg-[#F3F2FF] p-0.5 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setMainChart('bars')}
+              className={`rounded-lg px-2.5 py-1 transition ${
+                mainChart === 'bars' ? 'bg-[#2925EB] text-white' : 'text-[#6C698A]'
+              }`}
+            >
+              Capital vs. Interés
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainChart('balance')}
+              className={`rounded-lg px-2.5 py-1 transition ${
+                mainChart === 'balance' ? 'bg-[#2925EB] text-white' : 'text-[#6C698A]'
+              }`}
+            >
+              Saldo Deudor
+            </button>
           </div>
 
           {canShowPerPeriod && annualSummary.length > 1 && (
-            <div className="inline-flex rounded-xl bg-[#F3F2FF] p-1 text-xs font-bold">
+            <div className="inline-flex rounded-xl bg-[#F3F2FF] p-0.5 text-[10.5px] font-bold">
               <button
                 type="button"
                 onClick={() => setGroupByYear(true)}
-                className={`rounded-lg px-3 py-1 transition ${
+                className={`rounded-lg px-2 py-1 ${
                   groupByYear ? 'bg-[#0C0C14] text-white' : 'text-[#6C698A]'
                 }`}
               >
@@ -96,7 +107,7 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
               <button
                 type="button"
                 onClick={() => setGroupByYear(false)}
-                className={`rounded-lg px-3 py-1 transition ${
+                className={`rounded-lg px-2 py-1 ${
                   !groupByYear ? 'bg-[#0C0C14] text-white' : 'text-[#6C698A]'
                 }`}
               >
@@ -106,69 +117,52 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
           )}
         </div>
 
-        <div className="h-72 w-full sm:h-80">
+        <div className="h-64 w-full sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={seriesData} margin={{ top: 8, right: 10, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ECEAFF" vertical={false} />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11, fill: '#6C698A' }}
-                axisLine={{ stroke: '#DFDCFC' }}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={compactAxis}
-                tick={{ fontSize: 11, fill: '#6C698A' }}
-                axisLine={false}
-                tickLine={false}
-                width={62}
-              />
-              <Tooltip
-                formatter={(value: number) => formatMoney(value, input.currency)}
-                contentStyle={{
-                  borderRadius: '16px',
-                  border: '1px solid #DFDCFC',
-                  boxShadow: '0 10px 25px rgba(41,37,235,0.12)',
-                  fontSize: '12px',
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-              <Bar dataKey="Amortización" stackId="a" fill="#4C3FF0" radius={[0, 0, 0, 0]} />
-              <Bar
-                dataKey="Interés"
-                stackId="a"
-                fill="#F2B632"
-                radius={input.sbsMode ? [0, 0, 0, 0] : [6, 6, 0, 0]}
-              />
-              {input.sbsMode && (
-                <Bar
-                  dataKey="Cargos"
-                  name="Desgrav./Portes"
-                  stackId="a"
-                  fill="#E25D9A"
-                  radius={[6, 6, 0, 0]}
+            {mainChart === 'bars' ? (
+              <BarChart data={seriesData} margin={{ top: 6, right: 6, left: -6, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ECEAFF" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10.5, fill: '#6C698A' }}
+                  axisLine={{ stroke: '#DFDCFC' }}
+                  tickLine={false}
                 />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Bottom 2-column grid: Saldo Insoluto + Donut Cost Distribution */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        {/* Chart 2: Remaining Balance Area */}
-        <div className="card-floating p-5 sm:p-6 xl:col-span-7">
-          <div className="mb-4">
-            <h3 className="text-sm font-extrabold text-[#100F24] sm:text-base">
-              Curva de Saldo Deudor (Insoluto)
-            </h3>
-            <p className="text-xs text-[#6C698A]">
-              Descenso de la deuda hasta liquidar exactamente en {formatMoney(0, input.currency)}
-            </p>
-          </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={seriesData} margin={{ top: 8, right: 10, left: 0, bottom: 4 }}>
+                <YAxis
+                  tickFormatter={compactAxis}
+                  tick={{ fontSize: 10.5, fill: '#6C698A' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={56}
+                />
+                <Tooltip
+                  formatter={(value: number) => formatMoney(value, input.currency)}
+                  contentStyle={{
+                    borderRadius: '14px',
+                    border: '1px solid #DFDCFC',
+                    fontSize: '11.5px',
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
+                <Bar dataKey="Amortización" stackId="a" fill="#4C3FF0" />
+                <Bar
+                  dataKey="Interés"
+                  stackId="a"
+                  fill="#F2B632"
+                  radius={input.sbsMode ? [0, 0, 0, 0] : [5, 5, 0, 0]}
+                />
+                {input.sbsMode && (
+                  <Bar
+                    dataKey="Cargos"
+                    name="Seg./Portes"
+                    stackId="a"
+                    fill="#E25D9A"
+                    radius={[5, 5, 0, 0]}
+                  />
+                )}
+              </BarChart>
+            ) : (
+              <AreaChart data={seriesData} margin={{ top: 6, right: 6, left: -6, bottom: 0 }}>
                 <defs>
                   <linearGradient id="saldoGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4C3FF0" stopOpacity={0.42} />
@@ -178,24 +172,23 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
                 <CartesianGrid strokeDasharray="3 3" stroke="#ECEAFF" vertical={false} />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 11, fill: '#6C698A' }}
+                  tick={{ fontSize: 10.5, fill: '#6C698A' }}
                   axisLine={{ stroke: '#DFDCFC' }}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={compactAxis}
-                  tick={{ fontSize: 11, fill: '#6C698A' }}
+                  tick={{ fontSize: 10.5, fill: '#6C698A' }}
                   axisLine={false}
                   tickLine={false}
-                  width={62}
+                  width={56}
                 />
                 <Tooltip
                   formatter={(value: number) => formatMoney(value, input.currency)}
                   contentStyle={{
-                    borderRadius: '16px',
+                    borderRadius: '14px',
                     border: '1px solid #DFDCFC',
-                    boxShadow: '0 10px 25px rgba(41,37,235,0.12)',
-                    fontSize: '12px',
+                    fontSize: '11.5px',
                   }}
                 />
                 <Area
@@ -203,76 +196,70 @@ export function ChartsPanel({ result }: ChartsPanelProps) {
                   dataKey="Saldo"
                   name="Saldo Insoluto"
                   stroke="#2925EB"
-                  strokeWidth={2.6}
+                  strokeWidth={2.5}
                   fill="url(#saldoGrad)"
                 />
               </AreaChart>
-            </ResponsiveContainer>
-          </div>
+            )}
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Side Donut Chart Card */}
+      <div className="card-floating flex flex-col justify-between p-4 sm:p-5 xl:col-span-4">
+        <div>
+          <h3 className="text-xs font-extrabold text-[#100F24]">Distribución del Costo</h3>
+          <p className="text-[11px] text-[#6C698A]">Proporción sobre el total a pagar</p>
         </div>
 
-        {/* Chart 3: Donut Cost Distribution */}
-        <div className="card-floating flex flex-col justify-between p-5 sm:p-6 xl:col-span-5">
-          <div>
-            <h3 className="text-sm font-extrabold text-[#100F24] sm:text-base">
-              Distribución del Costo Total
-            </h3>
-            <p className="text-xs text-[#6C698A]">Proporción de cada componente en el pago total</p>
-          </div>
+        <div className="h-44 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={donutData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={44}
+                outerRadius={68}
+                paddingAngle={3}
+              >
+                {donutData.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} stroke="none" />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number) => formatMoney(value, input.currency)}
+                contentStyle={{
+                  borderRadius: '12px',
+                  border: '1px solid #DFDCFC',
+                  fontSize: '11.5px',
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
 
-          <div className="h-52 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={donutData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={78}
-                  paddingAngle={3}
-                >
-                  {donutData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} stroke="none" />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => formatMoney(value, input.currency)}
-                  contentStyle={{
-                    borderRadius: '14px',
-                    border: '1px solid #DFDCFC',
-                    fontSize: '12px',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="space-y-2 border-t border-[#F0EEFF] pt-3 text-xs">
-            {donutData.map((item) => {
-              const pct = summary.totalPaid > 0 ? (item.value / summary.totalPaid) * 100 : 0;
-              return (
-                <div key={item.name} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-[#6C698A]">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="font-semibold">{item.name}</span>
-                  </div>
-                  <div className="tabular-nums text-right">
-                    <span className="font-extrabold text-[#100F24]">
-                      {formatMoney(item.value, input.currency)}
-                    </span>{' '}
-                    <span className="text-[11px] font-semibold text-[#6C698A]">
-                      ({pct.toFixed(1)}%)
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="space-y-1.5 border-t border-[#F0EEFF] pt-2.5 text-[11px]">
+          {donutData.map((item) => {
+            const pct = summary.totalPaid > 0 ? (item.value / summary.totalPaid) * 100 : 0;
+            return (
+              <div key={item.name} className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 font-semibold text-[#6C698A]">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  {item.name}
+                </span>
+                <span className="tabular-nums font-extrabold text-[#100F24]">
+                  {formatMoney(item.value, input.currency)}{' '}
+                  <span className="font-semibold text-[#6C698A]">({pct.toFixed(1)}%)</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

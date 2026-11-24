@@ -48,7 +48,7 @@ export function buildPdfDocument(result: SimulationResult): jsPDF {
   const subParts2: string[] = [];
   if (input.academic.professor.trim()) subParts2.push(`Docente: ${input.academic.professor.trim()}`);
   if (input.academic.studentOrGroup.trim()) {
-    subParts2.push(`Alumno / Integrantes: ${input.academic.studentOrGroup.trim()}`);
+    subParts2.push(`Integrantes: ${input.academic.studentOrGroup.trim()}`);
   }
   if (subParts2.length > 0) {
     doc.setFontSize(8.5);
@@ -191,7 +191,7 @@ export function buildPdfDocument(result: SimulationResult): jsPDF {
         '',
         fmtTot(summary.totalAmortization),
         fmtTot(summary.totalInterest),
-        fmtTot(summary.totalAmortization + summary.totalInterest),
+        fmtTot(summary.totalBasePayment),
         fmtTot(summary.totalDesgravamen),
         fmtTot(summary.totalFees),
         fmtTot(summary.totalPaid),

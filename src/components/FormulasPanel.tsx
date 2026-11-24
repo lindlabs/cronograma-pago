@@ -1,4 +1,4 @@
-import { BookOpen, Calculator, GitCommitHorizontal, Sigma } from 'lucide-react';
+import { GitCommitHorizontal } from 'lucide-react';
 import { COMPOUNDING_META, FREQUENCY_META } from '../engine/rates';
 import type { SimulationResult } from '../types/finance';
 import { formatMoney, formatPercent, methodLabel } from '../utils/formatters';
@@ -14,77 +14,50 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
   const firstNormal = rows.find((r) => r.phase === 'normal') ?? rows[0];
   const lastRow = rows[rows.length - 1];
 
-  // Cash flow diagram nodes: compact display with ellipsis when n > 9
   const compactDiagram = rows.length > 9;
-  const diagramNodes = compactDiagram
-    ? [...rows.slice(0, 4), null, ...rows.slice(-3)]
-    : rows;
-
+  const diagramNodes = compactDiagram ? [...rows.slice(0, 4), null, ...rows.slice(-3)] : rows;
   const maxOutflow = Math.max(1, ...rows.map((r) => r.totalPayment));
 
   return (
-    <div className="space-y-4">
-      {/* 1. Interactive SVG Cash Flow Diagram (Diagrama de Flujo de Caja) */}
-      <div className="card-floating p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#ECEAFF] text-[#2925EB]">
-              <GitCommitHorizontal className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-extrabold text-[#100F24] sm:text-base">
-                Diagrama de Flujo de Caja (Perspectiva del Prestatario)
-              </h3>
-              <p className="text-xs text-[#6C698A]">
-                Ingreso de capital (+P) en t = 0 y egresos periódicos (-R_k) hasta t ={' '}
-                {summary.totalPeriods}
-              </p>
-            </div>
+    <div className="space-y-3">
+      {/* Compact SVG Cash Flow Diagram */}
+      <div className="card-floating p-3.5 sm:p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <GitCommitHorizontal className="h-4 w-4 text-[#2925EB]" />
+            <h3 className="text-xs font-extrabold text-[#100F24]">
+              Diagrama de Flujo de Caja (t = 0 … {summary.totalPeriods})
+            </h3>
           </div>
-          <span className="rounded-full bg-[#F3F2FF] px-3 py-1 text-[11px] font-bold text-[#2925EB]">
-            {freqMeta.label} · n = {summary.totalPeriods}
+          <span className="rounded-full bg-[#ECEAFF] px-2.5 py-0.5 text-[10px] font-bold text-[#2925EB]">
+            {freqMeta.label} · Base 360 SBS
           </span>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl bg-[#FAF9FF] p-4 ring-1 ring-[#ECEAFF]">
+        <div className="overflow-x-auto rounded-2xl bg-[#FAF9FF] px-3 py-2 ring-1 ring-[#ECEAFF]">
           <svg
-            viewBox="0 0 760 210"
-            className="mx-auto h-auto w-full min-w-[560px] max-w-3xl"
+            viewBox="0 0 760 150"
+            className="mx-auto h-auto w-full min-w-[520px] max-w-3xl"
             role="img"
-            aria-label="Diagrama de flujo de caja de Ingeniería Económica"
+            aria-label="Diagrama de flujo de caja"
           >
-            {/* Axis baseline */}
-            <line x1="55" y1="102" x2="725" y2="102" stroke="#100F24" strokeWidth="2.2" />
+            <line x1="48" y1="74" x2="725" y2="74" stroke="#100F24" strokeWidth="2" />
 
-            {/* t = 0: Upward arrow (+P) */}
-            <line x1="72" y1="102" x2="72" y2="28" stroke="#2925EB" strokeWidth="3.5" />
-            <polygon points="72,18 65,31 79,31" fill="#2925EB" />
-            <circle cx="72" cy="102" r="4.5" fill="#2925EB" />
-            <text
-              x="72"
-              y="122"
-              textAnchor="middle"
-              fontSize="11"
-              fontWeight="800"
-              fill="#100F24"
-            >
+            {/* t = 0: +P */}
+            <line x1="72" y1="74" x2="72" y2="26" stroke="#2925EB" strokeWidth="3" />
+            <polygon points="72,18 66,29 78,29" fill="#2925EB" />
+            <circle cx="72" cy="74" r="4" fill="#2925EB" />
+            <text x="72" y="92" textAnchor="middle" fontSize="10" fontWeight="800" fill="#100F24">
               t = 0
             </text>
-            <rect x="20" y="2" width="128" height="19" rx="9" fill="#ECEAFF" />
-            <text
-              x="84"
-              y="15"
-              textAnchor="middle"
-              fontSize="10.5"
-              fontWeight="800"
-              fill="#2925EB"
-            >
+            <rect x="16" y="2" width="128" height="17" rx="8" fill="#ECEAFF" />
+            <text x="80" y="13.5" textAnchor="middle" fontSize="10" fontWeight="800" fill="#2925EB">
               +P = {formatMoney(summary.principal, input.currency)}
             </text>
 
-            {/* Period arrows */}
+            {/* Period Outflows */}
             {diagramNodes.map((node, idx) => {
-              const spacing = 620 / Math.max(1, diagramNodes.length);
+              const spacing = 615 / Math.max(1, diagramNodes.length);
               const x = 135 + idx * spacing;
 
               if (node === null) {
@@ -92,9 +65,9 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
                   <g key="ellipsis">
                     <text
                       x={x}
-                      y="96"
+                      y="69"
                       textAnchor="middle"
-                      fontSize="18"
+                      fontSize="16"
                       fontWeight="800"
                       fill="#7B6BF6"
                     >
@@ -102,9 +75,9 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
                     </text>
                     <text
                       x={x}
-                      y="138"
+                      y="102"
                       textAnchor="middle"
-                      fontSize="10"
+                      fontSize="9.5"
                       fontWeight="700"
                       fill="#6C698A"
                     >
@@ -115,8 +88,8 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
               }
 
               const ratio = node.totalPayment / maxOutflow;
-              const arrowLen = node.totalPayment === 0 ? 12 : Math.max(22, Math.round(ratio * 66));
-              const yEnd = 102 + arrowLen;
+              const arrowLen = node.totalPayment === 0 ? 10 : Math.max(20, Math.round(ratio * 46));
+              const yEnd = 74 + arrowLen;
               const color =
                 node.phase === 'grace_total'
                   ? '#E25D9A'
@@ -126,33 +99,32 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
 
               return (
                 <g key={node.period}>
-                  <circle cx={x} cy="102" r="3.5" fill={color} />
+                  <circle cx={x} cy="74" r="3" fill={color} />
                   {node.totalPayment > 0 ? (
                     <>
-                      <line x1={x} y1="102" x2={x} y2={yEnd - 7} stroke={color} strokeWidth="2.8" />
+                      <line x1={x} y1="74" x2={x} y2={yEnd - 6} stroke={color} strokeWidth="2.4" />
                       <polygon
-                        points={`${x},${yEnd} ${x - 5},${yEnd - 9} ${x + 5},${yEnd - 9}`}
+                        points={`${x},${yEnd} ${x - 4.5},${yEnd - 8} ${x + 4.5},${yEnd - 8}`}
                         fill={color}
                       />
                     </>
                   ) : (
                     <text
                       x={x}
-                      y="124"
+                      y="94"
                       textAnchor="middle"
-                      fontSize="9.5"
+                      fontSize="9"
                       fontWeight="800"
                       fill="#BE185D"
                     >
                       Gracia
                     </text>
                   )}
-
                   <text
                     x={x}
-                    y="91"
+                    y="65"
                     textAnchor="middle"
-                    fontSize="10.5"
+                    fontSize="10"
                     fontWeight="700"
                     fill="#6C698A"
                   >
@@ -160,9 +132,9 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
                   </text>
                   <text
                     x={x}
-                    y={Math.min(198, yEnd + 15)}
+                    y={Math.min(144, yEnd + 13)}
                     textAnchor="middle"
-                    fontSize="9.2"
+                    fontSize="9"
                     fontWeight="700"
                     fill="#100F24"
                   >
@@ -177,145 +149,102 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
         </div>
       </div>
 
-      {/* 2. Step-by-Step Live Engineering Economics Formulas */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Step 1: Rate Conversion (Base 360 SBS) */}
-        <div className="card-floating p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#2925EB] text-xs font-extrabold text-white">
+      {/* Tight 2x2 Live Formulas Grid */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* Step 1 */}
+        <div className="card-floating p-3.5">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#2925EB] text-[10px] font-extrabold text-white">
               1
             </span>
-            <h4 className="text-sm font-extrabold text-[#100F24]">
-              Conversión de Tasa (Base 360 SBS Perú)
-            </h4>
+            <h4 className="text-xs font-extrabold text-[#100F24]">Conversión (Base 360 SBS)</h4>
           </div>
-
-          <div className="rounded-2xl bg-[#F6F5FF] p-3.5 font-mono text-xs leading-relaxed text-[#100F24]">
+          <div className="rounded-xl bg-[#F6F5FF] p-2.5 font-mono text-[11px] leading-relaxed text-[#100F24]">
             {input.rateType === 'TEA' && (
               <>
-                <div className="text-[#6C698A]">// De TEA a {rates.periodRateLabel} ({rates.daysPerPeriod} días):</div>
-                <div className="mt-1 font-bold text-[#2925EB]">
+                <div className="font-bold text-[#2925EB]">
                   i_p = (1 + TEA)^({rates.daysPerPeriod}/360) - 1
                 </div>
-                <div className="mt-1">
-                  i_p = (1 + {rates.tea.toFixed(6)})^({rates.daysPerPeriod}/360) - 1
-                </div>
-                <div className="mt-1 font-extrabold text-[#100F24]">
-                  i_p = {rates.periodRate.toFixed(6)} ({formatPercent(rates.periodRate, 4)})
+                <div>
+                  i_p = (1 + {rates.tea.toFixed(4)})^({rates.daysPerPeriod}/360) - 1 ={' '}
+                  <strong>{formatPercent(rates.periodRate, 4)}</strong>
                 </div>
               </>
             )}
-
             {input.rateType === 'PERIOD_EFFECTIVE' && (
               <>
-                <div className="text-[#6C698A]">// Tasa efectiva directa del periodo ({rates.periodRateLabel}):</div>
-                <div className="mt-1 font-bold text-[#2925EB]">
-                  i_p = {formatPercent(rates.periodRate, 4)} ({rates.periodRate.toFixed(6)})
+                <div className="font-bold text-[#2925EB]">
+                  i_p = {formatPercent(rates.periodRate, 4)} ({rates.periodRateLabel})
                 </div>
-                <div className="mt-1.5 text-[#6C698A]">// TEA equivalente (Base 360 días):</div>
-                <div className="mt-0.5">
-                  TEA = (1 + {rates.periodRate.toFixed(6)})^({rates.periodsPerYear}) - 1 ={' '}
+                <div>
+                  TEA = (1 + {rates.periodRate.toFixed(5)})^{rates.periodsPerYear} - 1 ={' '}
                   <strong>{formatPercent(rates.tea, 2)}</strong>
                 </div>
               </>
             )}
-
             {input.rateType === 'TNA' && (
               <>
-                <div className="text-[#6C698A]">// De TNA ({compMeta.label}) a TEA:</div>
-                <div className="mt-1 font-bold text-[#2925EB]">
-                  TEA = (1 + TNA / m)^m - 1
+                <div className="font-bold text-[#2925EB]">
+                  TEA = (1 + TNA/{rates.compoundingPerYear})^{rates.compoundingPerYear} - 1 ={' '}
+                  {formatPercent(rates.tea, 2)}
                 </div>
-                <div className="mt-1">
-                  TEA = (1 + {rates.inputRateDecimal.toFixed(4)} / {rates.compoundingPerYear})^
-                  {rates.compoundingPerYear} - 1 = <strong>{formatPercent(rates.tea, 2)}</strong>
-                </div>
-                <div className="mt-1">
-                  {rates.periodRateLabel} = (1 + {rates.tea.toFixed(6)})^({rates.daysPerPeriod}/360)
-                  - 1 = <strong>{formatPercent(rates.periodRate, 4)}</strong>
+                <div>
+                  {compMeta.label} ⇒ {rates.periodRateLabel} ={' '}
+                  <strong>{formatPercent(rates.periodRate, 4)}</strong>
                 </div>
               </>
             )}
           </div>
         </div>
 
-        {/* Step 2: Amortization Model Formula */}
-        <div className="card-floating p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#6658F6] text-xs font-extrabold text-white">
+        {/* Step 2 */}
+        <div className="card-floating p-3.5">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#6658F6] text-[10px] font-extrabold text-white">
               2
             </span>
-            <h4 className="text-sm font-extrabold text-[#100F24]">
-              Fórmula del {methodLabel(input.method)}
+            <h4 className="text-xs font-extrabold text-[#100F24]">
+              {methodLabel(input.method).split('(')[0].trim()} (m = {summary.amortizationPeriods})
             </h4>
           </div>
-
-          <div className="rounded-2xl bg-[#F6F5FF] p-3.5 font-mono text-xs leading-relaxed text-[#100F24]">
-            {summary.gracePeriods > 0 && (
-              <div className="mb-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-sans font-semibold text-[#2925EB]">
-                Con g = {summary.gracePeriods} periodos de gracia dentro de n ={' '}
-                {summary.totalPeriods}, se amortiza en <strong>m = n - g = {summary.amortizationPeriods}</strong>{' '}
-                periodos sobre P_ef = {formatMoney(summary.effectivePrincipal, input.currency)}.
-              </div>
-            )}
-
-            {input.method === 'french' && (
-              <>
-                {rates.periodRate === 0 ? (
-                  <>
-                    <div className="text-[#6C698A]">// Caso borde i = 0% (evita división entre 0):</div>
-                    <div className="mt-1 font-bold text-[#2925EB]">R = P_ef / m</div>
-                    <div className="mt-1">
-                      R = {summary.effectivePrincipal.toFixed(2)} / {summary.amortizationPeriods} ={' '}
-                      <strong>{formatMoney(summary.referenceBasePayment, input.currency)}</strong>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-[#6C698A]">// Factor de Recuperación de Capital (A/P, i, m):</div>
-                    <div className="mt-1 font-bold text-[#2925EB]">
-                      R = P_ef × [ i(1+i)^m / ((1+i)^m - 1) ]
-                    </div>
-                    <div className="mt-1">
-                      (A/P, {formatPercent(rates.periodRate, 3)}, {summary.amortizationPeriods}) ={' '}
-                      <strong>{summary.frcFactor.toFixed(6)}</strong>
-                    </div>
-                    <div className="mt-1">
-                      R = {summary.effectivePrincipal.toFixed(2)} × {summary.frcFactor.toFixed(6)} ={' '}
-                      <strong>{formatMoney(summary.referenceBasePayment, input.currency)}</strong>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-
+          <div className="rounded-xl bg-[#F6F5FF] p-2.5 font-mono text-[11px] leading-relaxed text-[#100F24]">
+            {input.method === 'french' &&
+              (rates.periodRate === 0 ? (
+                <div>
+                  <span className="font-bold text-[#2925EB]">i = 0% ⇒ R = P / m</span> ={' '}
+                  <strong>{formatMoney(summary.referenceBasePayment, input.currency)}</strong>
+                </div>
+              ) : (
+                <>
+                  <div className="font-bold text-[#2925EB]">
+                    (A/P, {formatPercent(rates.periodRate, 3)}, {summary.amortizationPeriods}) ={' '}
+                    {summary.frcFactor.toFixed(6)}
+                  </div>
+                  <div>
+                    R = {summary.effectivePrincipal.toFixed(2)} × {summary.frcFactor.toFixed(6)} ={' '}
+                    <strong>{formatMoney(summary.referenceBasePayment, input.currency)}</strong>
+                  </div>
+                </>
+              ))}
             {input.method === 'german' && (
               <>
-                <div className="text-[#6C698A]">// Amortización constante de capital:</div>
-                <div className="mt-1 font-bold text-[#2925EB]">A = P_ef / m</div>
-                <div className="mt-1">
-                  A = {summary.effectivePrincipal.toFixed(2)} / {summary.amortizationPeriods} ={' '}
-                  <strong>
-                    {formatMoney(summary.effectivePrincipal / summary.amortizationPeriods, input.currency)}
-                  </strong>
+                <div className="font-bold text-[#2925EB]">
+                  A = P_ef / m ={' '}
+                  {formatMoney(
+                    summary.effectivePrincipal / summary.amortizationPeriods,
+                    input.currency,
+                  )}
                 </div>
-                <div className="mt-1 text-[#6C698A]">R_k = A + (S_(k-1) × i_p)</div>
+                <div>R_k = A + S_(k-1) × i_p (cuota decreciente)</div>
               </>
             )}
-
             {input.method === 'american' && (
               <>
-                <div className="text-[#6C698A]">// Intereses periódicos y capital íntegro al final:</div>
-                <div className="mt-1 font-bold text-[#2925EB]">
-                  I_k = P_ef × i_p &nbsp; (para k &lt; n)
+                <div className="font-bold text-[#2925EB]">
+                  I_k = P_ef × i_p ={' '}
+                  {formatMoney(summary.effectivePrincipal * rates.periodRate, input.currency)}
                 </div>
-                <div className="mt-1">
-                  I_k = {summary.effectivePrincipal.toFixed(2)} × {rates.periodRate.toFixed(6)} ={' '}
-                  <strong>
-                    {formatMoney(summary.effectivePrincipal * rates.periodRate, input.currency)}
-                  </strong>
-                </div>
-                <div className="mt-1">
+                <div>
                   R_n = P_ef + I_n = <strong>{formatMoney(lastRow.basePayment, input.currency)}</strong>
                 </div>
               </>
@@ -323,70 +252,41 @@ export function FormulasPanel({ result }: FormulasPanelProps) {
           </div>
         </div>
 
-        {/* Step 3: Verification of First & Final Row */}
-        <div className="card-floating p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#F2B632] text-xs font-extrabold text-[#100F24]">
+        {/* Step 3 */}
+        <div className="card-floating p-3.5">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#F2B632] text-[10px] font-extrabold text-[#100F24]">
               3
             </span>
-            <h4 className="flex items-center gap-1.5 text-sm font-extrabold text-[#100F24]">
-              <Calculator className="h-4 w-4 text-[#C28608]" />
-              Comprobación: Cuota #{firstNormal.period} y Cierre #{lastRow.period}
+            <h4 className="text-xs font-extrabold text-[#100F24]">
+              Comprobación Cuota #{firstNormal.period} y Cierre #{lastRow.period}
             </h4>
           </div>
-
-          <div className="space-y-2 rounded-2xl bg-[#F6F5FF] p-3.5 font-mono text-xs text-[#100F24]">
+          <div className="rounded-xl bg-[#F6F5FF] p-2.5 font-mono text-[11px] leading-relaxed text-[#100F24]">
             <div>
-              <span className="font-bold text-[#2925EB]">Cuota #{firstNormal.period}:</span>{' '}
-              I = {formatMoney(firstNormal.openingBalance, input.currency)} ×{' '}
-              {formatPercent(rates.periodRate, 4)} ={' '}
-              <strong>{formatMoney(firstNormal.interest, input.currency)}</strong>
+              C#{firstNormal.period}: I = {formatMoney(firstNormal.interest, input.currency)} · A ={' '}
+              {formatMoney(firstNormal.amortization, input.currency)}
             </div>
-            <div>
-              Amortización = <strong>{formatMoney(firstNormal.amortization, input.currency)}</strong>{' '}
-              | Saldo Final ={' '}
-              <strong>{formatMoney(firstNormal.closingBalance, input.currency)}</strong>
-            </div>
-            <hr className="border-[#E2DFFD]" />
-            <div>
-              <span className="font-bold text-[#059669]">Cuota Final #{lastRow.period}:</span>{' '}
-              Amortización = Saldo Inicial (
-              <strong>{formatMoney(lastRow.amortization, input.currency)}</strong>) ⇒{' '}
-              <strong className="text-[#059669]">Saldo Final = {formatMoney(0, input.currency)}</strong>
+            <div className="font-bold text-[#059669]">
+              C#{lastRow.period}: A = Saldo Ini. ⇒ Saldo Final = {formatMoney(0, input.currency)}
             </div>
           </div>
         </div>
 
-        {/* Step 4: TIR & TCEA */}
-        <div className="card-floating p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#E25D9A] text-xs font-extrabold text-white">
+        {/* Step 4 */}
+        <div className="card-floating p-3.5">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-[#E25D9A] text-[10px] font-extrabold text-white">
               4
             </span>
-            <h4 className="flex items-center gap-1.5 text-sm font-extrabold text-[#100F24]">
-              <Sigma className="h-4 w-4 text-[#E25D9A]" />
-              Evaluación TIR y TCEA (Costo Efectivo Real)
-            </h4>
+            <h4 className="text-xs font-extrabold text-[#100F24]">TIR y TCEA (VAN = 0)</h4>
           </div>
-
-          <div className="rounded-2xl bg-[#F6F5FF] p-3.5 font-mono text-xs leading-relaxed text-[#100F24]">
-            <div className="text-[#6C698A]">// Ecuación de Valor Presente (VAN = 0):</div>
-            <div className="mt-1 font-bold text-[#2925EB]">
-              P = Σ [ CuotaTotal_k / (1 + TIR_p)^k ]
+          <div className="rounded-xl bg-[#F6F5FF] p-2.5 font-mono text-[11px] leading-relaxed text-[#100F24]">
+            <div>
+              TIR ({freqMeta.shortLabel}) = <strong>{formatPercent(summary.periodicIrr, 4)}</strong>
             </div>
-            <div className="mt-1">
-              TIR del periodo ({freqMeta.shortLabel}) ={' '}
-              <strong>{formatPercent(summary.periodicIrr, 4)}</strong>
-            </div>
-            <div className="mt-1">
-              TCEA = (1 + TIR_p)^({rates.periodsPerYear}) - 1 ={' '}
-              <strong className="text-[#2925EB]">{formatPercent(summary.tcea, 2)}</strong>
-            </div>
-            <div className="mt-2 flex items-center gap-1.5 font-sans text-[11px] font-medium text-[#6C698A]">
-              <BookOpen className="h-3.5 w-3.5 shrink-0 text-[#6658F6]" />
-              {input.sbsMode
-                ? 'En Modo SBS, la TCEA supera a la TEA al incorporar seguro de desgravamen y portes.'
-                : 'En Modo Académico Puro (sin seguros ni comisiones), la TCEA coincide con la TEA.'}
+            <div className="font-bold text-[#2925EB]">
+              TCEA = (1 + TIR)^{rates.periodsPerYear} - 1 = {formatPercent(summary.tcea, 2)}
             </div>
           </div>
         </div>
