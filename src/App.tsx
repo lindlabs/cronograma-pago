@@ -330,7 +330,11 @@ export default function App() {
           Económica (Perú · Base 360 SBS)
         </span>
         <span>
-          Alumno:{' '}
+          Docente:{' '}
+          <strong className="font-bold text-[#4C4872]">
+            {input.academic.professor || 'Jimmy Luigi Zevallos Toribio'}
+          </strong>{' '}
+          · Alumno:{' '}
           <strong className="font-bold text-[#4C4872]">
             {input.academic.studentOrGroup || 'Lindbergh Paredes'}
           </strong>

@@ -182,6 +182,7 @@ describe('Exportador PDF (multi-página con cabecera académica)', () => {
     });
 
     expect(res.input.academic.studentOrGroup).toBe('Lindbergh Paredes');
+    expect(res.input.academic.professor).toBe('Jimmy Luigi Zevallos Toribio');
     const doc = buildPdfDocument(res);
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(2);
     const pdfBytes = new Uint8Array(doc.output('arraybuffer'));

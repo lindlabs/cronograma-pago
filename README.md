@@ -2,7 +2,7 @@
 
 Aplicación web responsive para simular cronogramas de pago bajo estándares financieros del **Perú (SBS · Base 360 días)** y conceptos fundamentales del curso de **Ingeniería Económica**, con soporte para plazos de hasta **48 meses (4 años)** y exportación profesional a **PDF** y **Excel (`.xlsx`) con fórmulas dinámicas**.
 
-**Alumno:** Lindbergh Paredes · **Curso:** Ingeniería Económica
+**Alumno:** Lindbergh Paredes · **Docente:** Jimmy Luigi Zevallos Toribio · **Curso:** Ingeniería Económica
 
 ## Características Principales
 

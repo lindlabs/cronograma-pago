@@ -38,7 +38,7 @@ export const DEFAULT_LOAN_INPUT: LoanInput = {
   academic: {
     university: 'Universidad Tecnológica del Perú (UTP)',
     course: 'Ingeniería Económica',
-    professor: '',
+    professor: 'Jimmy Luigi Zevallos Toribio',
     studentOrGroup: 'Lindbergh Paredes',
   },
 };
