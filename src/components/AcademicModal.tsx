@@ -94,13 +94,13 @@ export function AcademicModal({
 
             <div>
               <label className="mb-1 block text-[11px] font-bold text-[#6C698A]">
-                Alumno / Integrantes
+                Alumno
               </label>
               <input
                 type="text"
                 value={academic.studentOrGroup}
                 onChange={(e) => update({ studentOrGroup: e.target.value })}
-                placeholder="Nombres o Grupo #"
+                placeholder="Nombre del alumno"
                 className="w-full rounded-xl border border-[#DFDCFC] bg-[#F8F7FF] px-3 py-2 text-xs font-semibold text-[#100F24] outline-none focus:border-[#3E35F2] focus:bg-white"
               />
             </div>

@@ -35,7 +35,7 @@ const COLORS = {
 export async function buildExcelWorkbook(result: SimulationResult): Promise<ExcelJS.Workbook> {
   const { input, rates, rows, summary } = result;
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'CronoPE - Lindbergh Paredes y Jesus Garcia';
+  workbook.creator = 'CronoPE - Lindbergh Paredes';
   workbook.created = new Date();
 
   const moneyFmt = CURRENCY_NUM_FMT[input.currency];
@@ -67,7 +67,7 @@ export async function buildExcelWorkbook(result: SimulationResult): Promise<Exce
   if (input.academic.course.trim()) acadParts.push(`Curso: ${input.academic.course.trim()}`);
   if (input.academic.professor.trim()) acadParts.push(`Docente: ${input.academic.professor.trim()}`);
   if (input.academic.studentOrGroup.trim()) {
-    acadParts.push(`Integrantes: ${input.academic.studentOrGroup.trim()}`);
+    acadParts.push(`Alumno: ${input.academic.studentOrGroup.trim()}`);
   }
 
   sheet.mergeCells(`A2:${lastColLetter}2`);

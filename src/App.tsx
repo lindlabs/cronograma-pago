@@ -281,7 +281,7 @@ export default function App() {
               </span>
               <div>
                 <div>Datos del Curso</div>
-                <div className="text-[10px] font-medium text-[#6C698A]">Universidad y grupo</div>
+                <div className="text-[10px] font-medium text-[#6C698A]">Universidad y alumno</div>
               </div>
             </button>
           </div>
@@ -330,9 +330,9 @@ export default function App() {
           Económica (Perú · Base 360 SBS)
         </span>
         <span>
-          Integrantes:{' '}
+          Alumno:{' '}
           <strong className="font-bold text-[#4C4872]">
-            {input.academic.studentOrGroup || 'Lindbergh Paredes y Jesus Garcia'}
+            {input.academic.studentOrGroup || 'Lindbergh Paredes'}
           </strong>
         </span>
       </footer>

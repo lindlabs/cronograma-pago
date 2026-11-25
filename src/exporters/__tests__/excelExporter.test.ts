@@ -169,7 +169,7 @@ describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial · máx. 48 meses)
 });
 
 describe('Exportador PDF (multi-página con cabecera académica)', () => {
-  it('genera PDF multi-página válido (%PDF-) para 48 cuotas con integrantes por defecto', () => {
+  it('genera PDF multi-página válido (%PDF-) para 48 cuotas con alumno por defecto', () => {
     const res = simulateLoan({
       ...DEFAULT_LOAN_INPUT,
       principal: 60000,
@@ -181,7 +181,7 @@ describe('Exportador PDF (multi-página con cabecera académica)', () => {
       gracePeriods: 2,
     });
 
-    expect(res.input.academic.studentOrGroup).toBe('Lindbergh Paredes y Jesus Garcia');
+    expect(res.input.academic.studentOrGroup).toBe('Lindbergh Paredes');
     const doc = buildPdfDocument(res);
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(2);
     const pdfBytes = new Uint8Array(doc.output('arraybuffer'));

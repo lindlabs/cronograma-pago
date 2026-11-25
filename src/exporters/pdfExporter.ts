@@ -48,7 +48,7 @@ export function buildPdfDocument(result: SimulationResult): jsPDF {
   const subParts2: string[] = [];
   if (input.academic.professor.trim()) subParts2.push(`Docente: ${input.academic.professor.trim()}`);
   if (input.academic.studentOrGroup.trim()) {
-    subParts2.push(`Integrantes: ${input.academic.studentOrGroup.trim()}`);
+    subParts2.push(`Alumno: ${input.academic.studentOrGroup.trim()}`);
   }
   if (subParts2.length > 0) {
     doc.setFontSize(8.5);

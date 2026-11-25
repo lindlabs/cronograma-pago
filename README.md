@@ -2,7 +2,7 @@
 
 Aplicación web responsive para simular cronogramas de pago bajo estándares financieros del **Perú (SBS · Base 360 días)** y conceptos fundamentales del curso de **Ingeniería Económica**, con soporte para plazos de hasta **48 meses (4 años)** y exportación profesional a **PDF** y **Excel (`.xlsx`) con fórmulas dinámicas**.
 
-**Integrantes:** Lindbergh Paredes y Jesus Garcia · **Curso:** Ingeniería Económica
+**Alumno:** Lindbergh Paredes · **Curso:** Ingeniería Económica
 
 ## Características Principales
 
@@ -19,7 +19,7 @@ Aplicación web responsive para simular cronogramas de pago bajo estándares fin
   - **Modo Banca Perú / SBS**: Seguro de desgravamen (% mensual), portes/comisiones, **periodos de gracia** (Parcial o Total amortizando en `n - g` periodos), fechas de vencimiento y cálculo numérico de **TIR y TCEA**.
 - **Módulo Educativo *Paso a Paso***: Diagrama de Flujo de Caja SVG interactivo y sustitución en vivo de fórmulas.
 - **Exportación Profesional**:
-  - **PDF Multi-página** (`jsPDF` + `jspdf-autotable`) con cabecera personalizable (Universidad, Curso, Docente, Alumno/Integrantes).
+  - **PDF Multi-página** (`jsPDF` + `jspdf-autotable`) con cabecera personalizable (Universidad, Curso, Docente, Alumno).
   - **Excel `.xlsx` Dinámico** (`ExcelJS`) con estilos y fórmulas nativas recalculables adaptadas a cada método (`PMT` con guardia `IF` para Francés, `P_ef / (n - g)` para Alemán, pago final para Americano).
 - **Diseño 100% Responsive**: Vista de tarjetas y navegación flotante en celular + tablero completo de 2 columnas en PC/laptop.
 
