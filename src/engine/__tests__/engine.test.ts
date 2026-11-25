@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { compareAllMethods, round2, simulateLoan } from '../amortization';
 import { DEFAULT_LOAN_INPUT } from '../presets';
-import { computeRates, computeTotalPeriods } from '../rates';
+import {
+  computeRates,
+  computeTotalPeriods,
+  MAX_TERM_MONTHS,
+  MAX_TERM_YEARS,
+  maxPeriodsForFrequency,
+} from '../rates';
 import type { LoanInput, SimulationResult } from '../../types/finance';
 
 function makeInput(patch: Partial<LoanInput>): LoanInput {
@@ -20,6 +26,7 @@ function assertAccountingInvariants(res: SimulationResult) {
   const { rows, summary } = res;
   expect(rows.length).toBe(summary.totalPeriods);
   expect(rows.length).toBeGreaterThanOrEqual(1);
+  expect(rows.length).toBeLessThanOrEqual(maxPeriodsForFrequency(res.input.frequency));
 
   // First row starts at original principal P
   expect(rows[0].openingBalance).toBeCloseTo(summary.principal, 2);
@@ -29,12 +36,10 @@ function assertAccountingInvariants(res: SimulationResult) {
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    // Continuity: openingBalance(k) === closingBalance(k-1)
     if (i > 0) {
       expect(r.openingBalance).toBeCloseTo(rows[i - 1].closingBalance, 2);
     }
 
-    // No NaN / Infinity anywhere
     for (const v of [
       r.openingBalance,
       r.amortization,
@@ -94,7 +99,7 @@ function assertAccountingInvariants(res: SimulationResult) {
   expect(round2(rows.reduce((s, r) => s + r.totalPayment, 0))).toBeCloseTo(summary.totalPaid, 2);
 }
 
-describe('Conversión de tasas (SBS 360 días)', () => {
+describe('Conversión de tasas (SBS 360 días) y límite máximo de 48 meses (4 años)', () => {
   it('convierte TEA a TEM con base exacta de 360 días', () => {
     const rates = computeRates(12.682503, 'TEA', 'monthly', 'monthly', 0, false);
     expect(rates.periodRate).toBeCloseTo(0.01, 6);
@@ -124,23 +129,37 @@ describe('Conversión de tasas (SBS 360 días)', () => {
     expect(Number.isNaN(rates.periodRate)).toBe(false);
   });
 
-  it('calcula correctamente plazos en años, meses y cuotas directas (n)', () => {
-    expect(computeTotalPeriods(5, 'years', 'monthly')).toBe(60);
-    expect(computeTotalPeriods(10, 'years', 'monthly')).toBe(120);
-    expect(computeTotalPeriods(20, 'years', 'monthly')).toBe(240);
-    expect(computeTotalPeriods(30, 'years', 'monthly')).toBe(360);
-    expect(computeTotalPeriods(5, 'years', 'quarterly')).toBe(20);
+  it('respeta estrictamente el tope máximo de 48 meses (4 años) en todas las frecuencias y unidades', () => {
+    expect(MAX_TERM_MONTHS).toBe(48);
+    expect(MAX_TERM_YEARS).toBe(4);
+
+    // Valid values inside 1..48 months
+    expect(computeTotalPeriods(1, 'years', 'monthly')).toBe(12);
+    expect(computeTotalPeriods(2, 'years', 'monthly')).toBe(24);
+    expect(computeTotalPeriods(3, 'years', 'monthly')).toBe(36);
+    expect(computeTotalPeriods(4, 'years', 'monthly')).toBe(48);
+    expect(computeTotalPeriods(48, 'months', 'monthly')).toBe(48);
+    expect(computeTotalPeriods(4, 'years', 'quarterly')).toBe(16);
     expect(computeTotalPeriods(8, 'periods', 'quarterly')).toBe(8);
-    expect(computeTotalPeriods(18, 'periods', 'semiannual')).toBe(18);
+
+    // Out-of-range values strictly clamped to 48-month horizon
+    expect(computeTotalPeriods(5, 'years', 'monthly')).toBe(48);
+    expect(computeTotalPeriods(10, 'years', 'monthly')).toBe(48);
+    expect(computeTotalPeriods(60, 'months', 'monthly')).toBe(48);
+    expect(computeTotalPeriods(120, 'periods', 'monthly')).toBe(48);
+    expect(computeTotalPeriods(10, 'years', 'bimonthly')).toBe(24);
+    expect(computeTotalPeriods(25, 'periods', 'quarterly')).toBe(16);
+    expect(computeTotalPeriods(12, 'periods', 'semiannual')).toBe(8);
+    expect(computeTotalPeriods(10, 'years', 'annual')).toBe(4);
   });
 });
 
 describe('Verificación exacta contra ejercicios de libro de Ingeniería Económica', () => {
-  it('Libro 1 (Francés mensual): P=10,000, TEM=1%, n=60 => R = 222.44', () => {
+  it('Libro 1 (Francés mensual 48 meses): P=10,000, TEM=1%, n=48 => R = 263.34', () => {
     const res = simulateLoan(
       makeInput({
         principal: 10000,
-        termValue: 60,
+        termValue: 48,
         termUnit: 'periods',
         frequency: 'monthly',
         ratePercent: 1,
@@ -151,10 +170,11 @@ describe('Verificación exacta contra ejercicios de libro de Ingeniería Económ
     );
 
     assertAccountingInvariants(res);
-    expect(res.summary.referenceBasePayment).toBe(222.44);
+    expect(res.rows).toHaveLength(48);
+    expect(res.summary.referenceBasePayment).toBe(263.34);
     expect(res.rows[0].interest).toBe(100);
-    expect(res.rows[0].amortization).toBe(122.44);
-    expect(res.rows[0].closingBalance).toBe(9877.56);
+    expect(res.rows[0].amortization).toBe(163.34);
+    expect(res.rows[0].closingBalance).toBe(9836.66);
     expect(res.summary.tcea).toBeCloseTo(res.rates.tea, 3);
   });
 
@@ -179,11 +199,11 @@ describe('Verificación exacta contra ejercicios de libro de Ingeniería Económ
     expect(res.rows[7].closingBalance).toBe(0);
   });
 
-  it('Libro 3 (TNA cap. diaria 360): P=100,000, TNA=18% cap. diaria, 5 años mensual => R = 2,546.48', () => {
+  it('Libro 3 (TNA cap. diaria 360): P=100,000, TNA=18% cap. diaria, 4 años mensual (48 cuotas)', () => {
     const res = simulateLoan(
       makeInput({
         principal: 100000,
-        termValue: 5,
+        termValue: 4,
         termUnit: 'years',
         frequency: 'monthly',
         ratePercent: 18,
@@ -196,16 +216,16 @@ describe('Verificación exacta contra ejercicios de libro de Ingeniería Económ
 
     assertAccountingInvariants(res);
     const tem = Math.pow(1 + 0.18 / 360, 30) - 1;
-    const expectedR = round2(100000 * ((tem * Math.pow(1 + tem, 60)) / (Math.pow(1 + tem, 60) - 1)));
+    const expectedR = round2(100000 * ((tem * Math.pow(1 + tem, 48)) / (Math.pow(1 + tem, 48) - 1)));
     expect(res.summary.referenceBasePayment).toBe(expectedR);
-    expect(res.summary.referenceBasePayment).toBe(2546.48);
+    expect(res.rows).toHaveLength(48);
   });
 
-  it('Libro 4 (Alemán): P=50,000, TEA=14.5%, n=60 meses => Amort = 833.33, I_1 = 567.38, R_1 = 1,400.71', () => {
+  it('Libro 4 (Alemán 48 meses): P=48,000, TEA=14.5%, n=48 meses => Amort = 1,000.00 exacto', () => {
     const res = simulateLoan(
       makeInput({
-        principal: 50000,
-        termValue: 5,
+        principal: 48000,
+        termValue: 4,
         termUnit: 'years',
         frequency: 'monthly',
         ratePercent: 14.5,
@@ -217,11 +237,11 @@ describe('Verificación exacta contra ejercicios de libro de Ingeniería Económ
 
     assertAccountingInvariants(res);
     const tem = Math.pow(1.145, 30 / 360) - 1;
-    expect(res.rows[0].amortization).toBe(833.33);
-    expect(res.rows[0].interest).toBe(round2(50000 * tem));
-    expect(res.rows[0].interest).toBe(567.38);
-    expect(res.rows[0].basePayment).toBe(1400.71);
-    expect(res.rows[59].closingBalance).toBe(0);
+    const expectedInt1 = round2(48000 * tem);
+    expect(res.rows[0].amortization).toBe(1000);
+    expect(res.rows[0].interest).toBe(expectedInt1);
+    expect(res.rows[0].basePayment).toBe(round2(1000 + expectedInt1));
+    expect(res.rows[47].closingBalance).toBe(0);
   });
 
   it('Teorema de Gracia Total sin cargos extra: P=10,000, TEM=1%, n=12, g=2 => P_ef=10,201.00 y TCEA = TEA', () => {
@@ -247,21 +267,20 @@ describe('Verificación exacta contra ejercicios de libro de Ingeniería Económ
     expect(res.rows[1].closingBalance).toBe(10201);
     expect(res.summary.effectivePrincipal).toBe(10201);
     expect(res.summary.amortizationPeriods).toBe(10);
-    // Fundamental Engineering Economics invariance: capitalizing at the same rate preserves TCEA === TEA
     expect(res.summary.tcea).toBeCloseTo(res.rates.tea, 3);
   });
 });
 
-describe('Plazos largos, comparativa, casos borde i=0% y Modo Banca Perú / SBS', () => {
-  it('cumple todas las identidades contables en 5, 15 y 30 años en los 3 métodos', () => {
-    for (const years of [5, 15, 30]) {
+describe('Plazos 1 a 4 años (hasta 48 meses), comparativa, i=0% y Modo Banca Perú / SBS', () => {
+  it('cumple todas las identidades contables en 1, 2, 3 y 4 años (12..48 cuotas) en los 3 métodos', () => {
+    for (const years of [1, 2, 3, 4]) {
       for (const method of ['french', 'german', 'american'] as const) {
         const res = simulateLoan(
           makeInput({
-            principal: 250000,
+            principal: 60000,
             termValue: years,
             termUnit: 'years',
-            ratePercent: 8.9,
+            ratePercent: 14.5,
             rateType: 'TEA',
             method,
           }),
@@ -276,7 +295,7 @@ describe('Plazos largos, comparativa, casos borde i=0% y Modo Banca Perú / SBS'
     const comp = compareAllMethods(
       makeInput({
         principal: 60000,
-        termValue: 5,
+        termValue: 4,
         termUnit: 'years',
         ratePercent: 14.5,
         rateType: 'TEA',
@@ -290,12 +309,12 @@ describe('Plazos largos, comparativa, casos borde i=0% y Modo Banca Perú / SBS'
     expect(french.totalInterest).toBeLessThan(american.totalInterest);
   });
 
-  it('Regla borde i = 0%: aplica Cuota = P / n sin NaN ni Infinity en los 3 métodos', () => {
+  it('Regla borde i = 0%: aplica Cuota = P / n sin NaN ni Infinity en los 3 métodos (48 meses)', () => {
     for (const method of ['french', 'german', 'american'] as const) {
       const res = simulateLoan(
         makeInput({
-          principal: 12000,
-          termValue: 5,
+          principal: 24000,
+          termValue: 4,
           termUnit: 'years',
           ratePercent: 0,
           rateType: 'TEA',
@@ -305,25 +324,26 @@ describe('Plazos largos, comparativa, casos borde i=0% y Modo Banca Perú / SBS'
       );
 
       assertAccountingInvariants(res);
+      expect(res.rows).toHaveLength(48);
       expect(res.summary.totalInterest).toBe(0);
-      expect(res.summary.totalPaid).toBe(12000);
+      expect(res.summary.totalPaid).toBe(24000);
       expect(res.summary.tcea).toBe(0);
 
       if (method === 'french' || method === 'german') {
-        expect(res.rows[0].basePayment).toBe(200);
+        expect(res.rows[0].basePayment).toBe(500); // 24,000 / 48
       } else {
         expect(res.rows[0].basePayment).toBe(0);
-        expect(res.rows[59].basePayment).toBe(12000);
+        expect(res.rows[47].basePayment).toBe(24000);
       }
     }
   });
 
-  it('SBS con Gracia Total + Desgravamen + Portes cumple conservación exacta (sin doble conteo)', () => {
+  it('SBS con Gracia Total + Desgravamen + Portes en 48 meses cumple conservación exacta', () => {
     for (const method of ['french', 'german', 'american'] as const) {
       const res = simulateLoan(
         makeInput({
-          principal: 120000,
-          termValue: 10,
+          principal: 80000,
+          termValue: 4,
           termUnit: 'years',
           ratePercent: 16.5,
           rateType: 'TEA',
@@ -337,8 +357,9 @@ describe('Plazos largos, comparativa, casos borde i=0% y Modo Banca Perú / SBS'
       );
 
       assertAccountingInvariants(res);
+      expect(res.rows).toHaveLength(48);
       expect(res.summary.gracePeriods).toBe(4);
-      expect(res.summary.amortizationPeriods).toBe(116);
+      expect(res.summary.amortizationPeriods).toBe(44);
       expect(res.summary.tcea).toBeGreaterThan(res.rates.tea);
     }
   });

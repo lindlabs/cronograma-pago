@@ -6,6 +6,10 @@ import type {
   TermUnit,
 } from '../types/finance';
 
+/** Maximum allowed schedule horizon: 48 months (4 years) */
+export const MAX_TERM_MONTHS = 48;
+export const MAX_TERM_YEARS = 4;
+
 export interface FrequencyMeta {
   id: PaymentFrequency;
   label: string;
@@ -80,8 +84,17 @@ export const COMPOUNDING_META: Record<CompoundingFrequency, CompoundingMeta> = {
 };
 
 /**
+ * Returns the maximum number of payment periods allowed for a given frequency
+ * so the future horizon never exceeds 48 months (4 years).
+ */
+export function maxPeriodsForFrequency(frequency: PaymentFrequency): number {
+  const meta = FREQUENCY_META[frequency];
+  return Math.max(1, Math.floor(MAX_TERM_MONTHS / meta.monthsPerPeriod));
+}
+
+/**
  * Computes total payment periods `n` from termValue, termUnit and payment frequency.
- * Supports terms from 1 period up to 50+ years (e.g. 600 monthly periods).
+ * Strictly capped at a maximum future horizon of 48 months (4 years).
  */
 export function computeTotalPeriods(
   termValue: number,
@@ -90,12 +103,19 @@ export function computeTotalPeriods(
 ): number {
   const safeTerm = Number.isFinite(termValue) && termValue > 0 ? termValue : 1;
   const meta = FREQUENCY_META[frequency];
+  const maxPeriods = maxPeriodsForFrequency(frequency);
+
   if (termUnit === 'periods') {
-    return Math.max(1, Math.min(600, Math.round(safeTerm)));
+    return Math.max(1, Math.min(maxPeriods, Math.round(safeTerm)));
   }
-  const totalMonths = termUnit === 'years' ? safeTerm * 12 : safeTerm;
-  const rawPeriods = Math.round(totalMonths / meta.monthsPerPeriod);
-  return Math.max(1, Math.min(600, rawPeriods));
+
+  const cappedMonths =
+    termUnit === 'years'
+      ? Math.min(MAX_TERM_MONTHS, safeTerm * 12)
+      : Math.min(MAX_TERM_MONTHS, safeTerm);
+
+  const rawPeriods = Math.round(cappedMonths / meta.monthsPerPeriod);
+  return Math.max(1, Math.min(maxPeriods, rawPeriods));
 }
 
 /**

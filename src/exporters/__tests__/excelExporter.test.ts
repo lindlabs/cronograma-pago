@@ -4,12 +4,12 @@ import { DEFAULT_LOAN_INPUT } from '../../engine/presets';
 import { buildExcelWorkbook } from '../excelExporter';
 import { buildPdfDocument } from '../pdfExporter';
 
-describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial)', () => {
-  it('genera fórmulas vivas TEA->TEM, PMT con IF(i=0), Periodo 0 + IRR/TCEA sin "=" inicial', async () => {
+describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial · máx. 48 meses)', () => {
+  it('genera fórmulas vivas TEA->TEM, PMT con IF(i=0), Periodo 0 + IRR/TCEA sin "=" inicial (48 cuotas)', async () => {
     const frenchRes = simulateLoan({
       ...DEFAULT_LOAN_INPUT,
-      principal: 50000,
-      termValue: 5,
+      principal: 48000,
+      termValue: 4,
       termUnit: 'years',
       ratePercent: 14.5,
       rateType: 'TEA',
@@ -44,13 +44,12 @@ describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial)', () => {
     expect(c8.formula).toBe('IF(H6=0,0,(1+H6)^(30/360)-1)');
     expect(c8.result).toBeCloseTo(frenchRes.rates.periodRate, 8);
 
-    // Live IRR & TCEA formulas in H11 & H12
+    // Row 15 = Period 0, Rows 16..63 = Periods 1..48
     const h11 = ws.getCell('H11').value as { formula: string; result?: number };
-    expect(h11.formula).toBe('IFERROR(IRR(H15:H75,C8),0)');
+    expect(h11.formula).toBe('IFERROR(IRR(H15:H63,C8),0)');
     const h12 = ws.getCell('H12').value as { formula: string; result?: number };
     expect(h12.formula).toBe('IF(H11<=0,0,(1+H11)^12-1)');
 
-    // Row 15 = Period 0 (Desembolso), Row 16 = Period 1 (first cuota)
     expect(ws.getCell('A15').value).toBe(0);
     expect(ws.getCell('A16').value).toBe(1);
 
@@ -58,17 +57,17 @@ describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial)', () => {
     expect(f16.formula).toContain('IF($C$8=0');
     expect(f16.formula).toContain('PMT(');
 
-    // Final row (row 75 = period 60) Saldo Final (G75) closes at 0
-    const g75 = ws.getCell('G75').value as { formula: string; result?: number };
-    expect(g75.formula).toBe('ROUND(C75-D75,2)');
-    expect(g75.result ?? 0).toBe(0);
+    // Final row (row 63 = period 48) Saldo Final (G63) closes at 0
+    const g63 = ws.getCell('G63').value as { formula: string; result?: number };
+    expect(g63.formula).toBe('ROUND(C63-D63,2)');
+    expect(g63.result ?? 0).toBe(0);
   });
 
   it('genera fórmulas vivas TNA -> TEA -> TEM cuando el usuario ingresa TNA', async () => {
     const res = simulateLoan({
       ...DEFAULT_LOAN_INPUT,
       principal: 100000,
-      termValue: 5,
+      termValue: 4,
       termUnit: 'years',
       ratePercent: 18,
       rateType: 'TNA',
@@ -84,12 +83,12 @@ describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial)', () => {
     expect(h6.result).toBeCloseTo(res.rates.tea, 8);
   });
 
-  it('NO usa PMT en Método Alemán ni Americano y maneja i = 0% + gracia en SBS', async () => {
+  it('NO usa PMT en Método Alemán ni Americano y maneja i = 0% + gracia en SBS (48 cuotas)', async () => {
     for (const method of ['german', 'american'] as const) {
       const res = simulateLoan({
         ...DEFAULT_LOAN_INPUT,
-        principal: 36000,
-        termValue: 5,
+        principal: 42000,
+        termValue: 4,
         termUnit: 'years',
         ratePercent: 0,
         method,
@@ -116,37 +115,37 @@ describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial)', () => {
         });
       });
 
-      // Row 16 is period 1 -> Row 22 is period 7 (first normal period after 6 grace periods)
+      // Row 16 is period 1 -> Row 22 is period 7 (first normal period after 6 grace periods, m = 42)
       if (method === 'german') {
         const amortCell = ws.getCell('E22').value as { formula: string; result?: number };
         expect(amortCell.formula).toContain('$C$11/$C$10');
-        expect(amortCell.result).toBeCloseTo(36000 / 54, 2);
+        expect(amortCell.result).toBeCloseTo(42000 / 42, 2);
       } else {
         expect(ws.getCell('E22').value).toBe(0);
-        const lastAmort = ws.getCell('E75').value as { formula: string; result?: number };
-        expect(lastAmort.result).toBe(36000);
+        const lastAmort = ws.getCell('E63').value as { formula: string; result?: number };
+        expect(lastAmort.result).toBe(42000);
       }
 
-      // Final closing balance formula in K75
-      const k75 = ws.getCell('K75').value as { formula: string; result?: number };
-      expect(k75.formula).toBe('ROUND(D75-E75,2)');
-      expect(k75.result ?? 0).toBe(0);
+      // Final closing balance formula in K63
+      const k63 = ws.getCell('K63').value as { formula: string; result?: number };
+      expect(k63.formula).toBe('ROUND(D63-E63,2)');
+      expect(k63.result ?? 0).toBe(0);
     }
   });
 
-  it('genera buffer .xlsx válido (ZIP PK) para 30 años (360 cuotas) con gracia total en SBS sin doble conteo', async () => {
+  it('genera buffer .xlsx válido (ZIP PK) para 48 meses con gracia total en SBS sin doble conteo', async () => {
     const res = simulateLoan({
       ...DEFAULT_LOAN_INPUT,
-      principal: 300000,
-      termValue: 30,
+      principal: 80000,
+      termValue: 4,
       termUnit: 'years',
-      ratePercent: 9.2,
+      ratePercent: 16.5,
       method: 'french',
       sbsMode: true,
       graceType: 'total',
       gracePeriods: 4,
-      desgravamenMonthlyPercent: 0.05,
-      fixedFeePerPeriod: 15,
+      desgravamenMonthlyPercent: 0.055,
+      fixedFeePerPeriod: 12,
     });
 
     const wb = await buildExcelWorkbook(res);
@@ -157,26 +156,26 @@ describe('Exportador ExcelJS (fórmulas vivas sin "=" inicial)', () => {
     expect(bytes[1]).toBe(0x4b);
 
     const ws = wb.getWorksheet('Cronograma de Pago')!;
-    // Row 16 = period 1, so period 5 (first normal after g=4) is Row 20 -> D20
+    // Row 16 = period 1 -> period 5 (first normal after g=4) is Row 20 -> D20
     const c11 = ws.getCell('C11').value as { formula: string; result?: number };
     expect(c11.formula).toBe('D20');
     expect(c11.result).toBeCloseTo(res.summary.effectivePrincipal, 2);
 
-    // Totals row is Row 376 (16 + 360) -> Cuota Base total matches exact totalBasePayment
-    const g376 = ws.getCell('G376').value as { formula: string; result?: number };
-    expect(g376.formula).toBe('SUM(G16:G375)');
-    expect(g376.result).toBeCloseTo(res.summary.totalBasePayment, 2);
+    // Totals row is Row 64 (16 + 48) -> Cuota Base total matches exact totalBasePayment
+    const g64 = ws.getCell('G64').value as { formula: string; result?: number };
+    expect(g64.formula).toBe('SUM(G16:G63)');
+    expect(g64.result).toBeCloseTo(res.summary.totalBasePayment, 2);
   });
 });
 
 describe('Exportador PDF (multi-página con cabecera académica)', () => {
-  it('genera PDF multi-página válido (%PDF-) para 20 años (240 cuotas) con integrantes por defecto', () => {
+  it('genera PDF multi-página válido (%PDF-) para 48 cuotas con integrantes por defecto', () => {
     const res = simulateLoan({
       ...DEFAULT_LOAN_INPUT,
-      principal: 250000,
-      termValue: 20,
+      principal: 60000,
+      termValue: 4,
       termUnit: 'years',
-      ratePercent: 8.9,
+      ratePercent: 14.5,
       sbsMode: true,
       graceType: 'total',
       gracePeriods: 2,
@@ -184,7 +183,7 @@ describe('Exportador PDF (multi-página con cabecera académica)', () => {
 
     expect(res.input.academic.studentOrGroup).toBe('Lindbergh Paredes y Jesus Garcia');
     const doc = buildPdfDocument(res);
-    expect(doc.getNumberOfPages()).toBeGreaterThan(4);
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(2);
     const pdfBytes = new Uint8Array(doc.output('arraybuffer'));
     expect(String.fromCharCode(...pdfBytes.slice(0, 5))).toBe('%PDF-');
   });

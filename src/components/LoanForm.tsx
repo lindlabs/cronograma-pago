@@ -1,6 +1,13 @@
 import { Calendar, GraduationCap, Landmark, Percent, ShieldCheck, Sparkles } from 'lucide-react';
 import { PERU_PRESETS, type LoanPreset } from '../engine/presets';
-import { COMPOUNDING_META, computeTotalPeriods, FREQUENCY_META } from '../engine/rates';
+import {
+  COMPOUNDING_META,
+  computeTotalPeriods,
+  FREQUENCY_META,
+  MAX_TERM_MONTHS,
+  MAX_TERM_YEARS,
+  maxPeriodsForFrequency,
+} from '../engine/rates';
 import type {
   AmortizationMethod,
   CompoundingFrequency,
@@ -23,7 +30,7 @@ interface LoanFormProps {
   onApplyPreset: (preset: LoanPreset) => void;
 }
 
-const QUICK_YEARS = [3, 5, 10, 20];
+const QUICK_YEARS = [1, 2, 3, 4];
 
 export function LoanForm({
   input,
@@ -41,20 +48,42 @@ export function LoanForm({
     onChange({ ...input, ...patch });
   };
 
+  const maxPeriods = maxPeriodsForFrequency(input.frequency);
+
   const handleTermUnitSwitch = (unit: TermUnit) => {
     if (unit === input.termUnit) return;
     if (unit === 'periods') {
-      update({ termUnit: 'periods', termValue: totalPeriods });
+      update({ termUnit: 'periods', termValue: Math.min(maxPeriods, totalPeriods) });
     } else if (unit === 'months') {
-      const months = Math.max(1, Math.round(totalPeriods * freqMeta.monthsPerPeriod));
+      const months = Math.max(
+        1,
+        Math.min(MAX_TERM_MONTHS, Math.round(totalPeriods * freqMeta.monthsPerPeriod)),
+      );
       update({ termUnit: 'months', termValue: months });
     } else {
-      const years = Math.max(1, Math.round((totalPeriods / freqMeta.periodsPerYear) * 10) / 10);
+      const years = Math.max(
+        1,
+        Math.min(MAX_TERM_YEARS, Math.round((totalPeriods / freqMeta.periodsPerYear) * 10) / 10),
+      );
       update({ termUnit: 'years', termValue: years });
     }
   };
 
-  const maxTermVal = input.termUnit === 'years' ? 50 : 600;
+  const handleFrequencyChange = (nextFrequency: PaymentFrequency) => {
+    const nextMaxPeriods = maxPeriodsForFrequency(nextFrequency);
+    const nextTermValue =
+      input.termUnit === 'periods' ? Math.min(input.termValue, nextMaxPeriods) : input.termValue;
+    const nextTotal = computeTotalPeriods(nextTermValue, input.termUnit, nextFrequency);
+    const nextGrace = Math.min(input.gracePeriods, Math.max(0, nextTotal - 1));
+    update({ frequency: nextFrequency, termValue: nextTermValue, gracePeriods: nextGrace });
+  };
+
+  const maxTermVal =
+    input.termUnit === 'years'
+      ? MAX_TERM_YEARS
+      : input.termUnit === 'months'
+        ? MAX_TERM_MONTHS
+        : maxPeriods;
 
   return (
     <aside className="card-floating p-4 sm:p-5">
@@ -313,7 +342,7 @@ export function LoanForm({
             <select
               aria-label="Frecuencia de pago"
               value={input.frequency}
-              onChange={(e) => update({ frequency: e.target.value as PaymentFrequency })}
+              onChange={(e) => handleFrequencyChange(e.target.value as PaymentFrequency)}
               className="bg-transparent text-right text-[11px] font-extrabold text-[#100F24] outline-none"
             >
               {Object.values(FREQUENCY_META).map((f) => (
@@ -345,7 +374,9 @@ export function LoanForm({
 
         {/* Live Base-360 Summary Bar */}
         <div className="flex items-center justify-between rounded-xl bg-[#ECEAFF]/80 px-3 py-1.5 text-[11px] tabular-nums">
-          <span className="font-bold text-[#2925EB]">n = {totalPeriods} cuotas</span>
+          <span className="font-bold text-[#2925EB]">
+            n = {totalPeriods} <span className="font-semibold text-[#6C698A]">(máx. 48m)</span>
+          </span>
           <span className="font-semibold text-[#6C698A]">
             TEA <strong className="text-[#100F24]">{formatPercent(rates.tea, 2)}</strong> →{' '}
             {rates.periodRateLabel}{' '}
